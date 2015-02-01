@@ -20,7 +20,7 @@ which <cmd> suceeds (exit code 0).
 
 git regress <cmd>
     (default) Step back one commit at a time.
-git regress tags <cmd>
+git regress tag <cmd>
     Step back only through tagged commits.
 git regress bisect [--good <sha>] [--bad <sha>] <cmd>
     Binary search through commits between bad and good.

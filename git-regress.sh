@@ -66,7 +66,7 @@ git_regress() {
 	unset -v stash unstash
 }
 
-git_regress_tags() {
+git_regress_tag() {
 # Identify the tag in which the regression was introduced.
 	__define_stash
 
@@ -171,7 +171,7 @@ usage() {
 
 	git regress <cmd>
 	    (default) Step back one commit at a time.
-	git regress tags <cmd>
+	git regress tag <cmd>
 	    Step back only through tagged commits.
 	git regress bisect [--good <sha>] [--bad <sha>] <cmd>
 	    Binary search through commits between bad and good.
@@ -188,9 +188,9 @@ case $1 in
 		shift
 		git_regress_bisect "$@"
 		;;
-	tags | "-t" | "--tags")
+	tag | "-t" | "--tag")
 		shift
-		git_regress_tags "$@"
+		git_regress_tag "$@"
 		;;
 	help | "-h")
 		usage
