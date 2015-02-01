@@ -35,6 +35,8 @@ Examples
 Setup
 -----
 
+> Note: this assumes you have already "installed" git regress globally as described above.
+
 The examples can by reproduced by pulling the example submodule:
 
 ```sh
@@ -54,7 +56,7 @@ You're now ready to try any of the below examples.
 git regress
 -----------
 
-This commmand finds the most recent regrssive commit.
+This commmand finds the most recent regressive commit.
 
 ```sh
 git regress python untracked_test.py
@@ -92,7 +94,7 @@ Your branch is up-to-date with 'origin/master'.
 git regress bisect
 ------------------
 
-This command should be significantly faster than regular `git regress` for searching a wide range of commits, but isn't guaranteed to find the most recent commit of regression.
+This command should be significantly faster than regular `git regress` when searching a wide range of commits, but isn't guaranteed to find the most recent commit of regression.
 
 ```sh
 git regress bisect python untracked_test.py
