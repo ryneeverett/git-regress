@@ -152,6 +152,9 @@ git_regress_bisect() {
 
 	git bisect run eval $cmd
 
+	# Make sure we actually have the culprit checked out.
+	git checkout $(git bisect view --format="%H")
+
 	# Make sure previous commit actually succeeds.
 	git checkout HEAD^
 	eval $cmd || __fail
