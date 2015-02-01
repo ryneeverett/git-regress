@@ -73,7 +73,7 @@ git_regress_tags() {
 	local prevline
 
 	mkfifo tagpipe
-	git for-each-ref --sort=taggerdate --format '%(refname)' refs/tags | tac > tagpipe &
+	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > tagpipe &
 	while read -r line; do
 		# Step back one tag  at a time...
 		eval $stash
