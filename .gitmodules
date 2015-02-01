@@ -1,0 +1,3 @@
+[submodule "example-repo"]
+	path = example-repo
+	url = https://ryneeverett@bitbucket.org/ryneeverett/example-repo.git
