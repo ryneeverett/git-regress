@@ -28,6 +28,21 @@ __define_stash() {
 	fi
 }
 
+__try_command() {
+		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+		find . -name '*.pyc' -delete
+
+		"$@"
+
+		if [[ $? == 0 ]]; then
+			# Return a bad exit code if the command succeeds.
+			return 1
+		else
+			# Return a good exit code if the command fails.
+			return 0
+		fi
+}
+
 git_regress() {
 	__define_stash
 
@@ -38,16 +53,8 @@ git_regress() {
 		git checkout HEAD^ || __fail
 		eval $unstash
 
-		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-		find . -name '*.pyc' -delete
-
-		# ...executing any arguments passed...
-		"$@"
-
-		# ...until an exit code 0 is returned.
-		if [[ $? == 0 ]]; then
-			break
-		fi
+		# ...executing any arguments passed until an exit code 0 is returned.
+		__try_command "$@" || break
 	done
 
 	eval $stash
@@ -73,16 +80,8 @@ git_regress_tags() {
 		git checkout $line
 		eval $unstash
 
-		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-		find . -name '*.pyc' -delete
-
-		# ...executing any arguments passed...
-		"$@"
-
-		# ...until an exit code 0 is returned.
-		if [[ $? == 0 ]]; then
-			break
-		fi
+		# ...executing any arguments passed until an exit code 0 is returned.
+		__try_command "$@" || break
 
 		prevline=$line
 	done < tagpipe

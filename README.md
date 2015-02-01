@@ -11,6 +11,8 @@ regress = !sh -c '/path/to/git-regress.sh $@' -
 Help
 ----
 
+Note that any changes that are unstaged when `git regress` is invoked will be applied to old commits.
+
 ```
 $ git regress help
 Searches through commits, looking for the most recent in
