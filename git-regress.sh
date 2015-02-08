@@ -71,9 +71,11 @@ git_regress_tag() {
 	__define_stash
 
 	local prevline
+	local tagpipe
 
-	mkfifo tagpipe
-	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > tagpipe &
+	tagpipe=$(mktemp -u)
+	mkfifo "$tagpipe"
+	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > $tagpipe &
 	while read -r line; do
 		# Step back one tag  at a time...
 		eval $stash
@@ -84,7 +86,7 @@ git_regress_tag() {
 		__try_command "$@" || break
 
 		prevline=$line
-	done < tagpipe
+	done < $tagpipe
 
 	"$@" || __fail
 
