@@ -32,7 +32,7 @@ git regress help
 Example Output
 ==============
 
-The examples can by reproduced by pulling (the example repo)[https://bitbucket.org/ryneeverett/example-repo], but the easies way to get it is to simply run the tests. See (below section)[#running-the-tests]. The example repo will end up at `./test-output/example-repo`.
+The examples can by reproduced by pulling [the example repo](https://bitbucket.org/ryneeverett/example-repo), but the easies way to get it is to simply run the tests. See [below section](#running-the-tests). The example repo will end up at `./test-output/example-repo`.
 
 git regress
 -----------
