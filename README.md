@@ -29,29 +29,10 @@ git regress help
     Print this help message.
 ```
 
-Examples
-========
+Example Output
+==============
 
-Setup
------
-
-> Note: this assumes you have already "installed" git regress globally as described above.
-
-The examples can by reproduced by pulling the example submodule:
-
-```sh
-git submodule init
-git submodule update
-```
-
-Now go into `ExampleRepo` and copy in `untracked_test.py`:
-
-```sh
-cd Example/ExampleRepo
-cp ../untracked_test.py ./
-```
-
-You're now ready to try any of the below examples.
+The examples can by reproduced by pulling (the example repo)[https://bitbucket.org/ryneeverett/example-repo], but the easies way to get it is to simply run the tests. See (below section)[#running-the-tests]. The example repo will end up at `./test-output/example-repo`.
 
 git regress
 -----------
@@ -168,4 +149,14 @@ index 3394505..5a611fd 100644
 Previous HEAD position was 0c96d6d... Trivial
 Switched to branch 'master'
 Your branch is up-to-date with 'origin/master'.
+```
+
+Running the Tests
+=================
+
+```sh
+git clone https://github.com/ryneeverett/git-regress.git
+cd git-regress/Tests
+pip install -r requirements.txt
+python3 test.py
 ```
