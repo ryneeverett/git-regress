@@ -1,9 +1,15 @@
+__teardown() {
+	find . -name 'git-regress-*' -delete
+	$unstash
+	unset -v args temp_dir
+}
+
 __fail() {
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	echo "REPO EXHAUSTED: Command Never Succeeded."
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git checkout master --force
-	eval $unstash
+	__teardown
 	exit 1
 }
 
@@ -12,6 +18,7 @@ __print_result() {
 	echo "REGRESSION IDENTIFIED:"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git log -1 -p --stat --decorate
+	__teardown
 }
 
 __define_stash() {
@@ -44,68 +51,49 @@ __try_command() {
 }
 
 git_regress() {
-	__define_stash
-
 	while true
 	do
 		# Step back one commit at a time...
-		eval $stash
 		git checkout HEAD^ || __fail
-		eval $unstash
 
 		# ...executing any arguments passed until an exit code 0 is returned.
 		__try_command "$@" || break
 	done
 
-	eval $stash
 	git checkout HEAD@{1}
 	__print_result
 	git checkout master
-	eval $unstash
-
-	unset -v stash unstash
 }
 
 git_regress_tag() {
 # Identify the tag in which the regression was introduced.
-	__define_stash
-
 	local prevline
 	local tagpipe
 
-	tagpipe=$(mktemp -u)
+	tagpipe=$(mktemp --dry-run)
 	mkfifo "$tagpipe"
 	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > $tagpipe &
-	while read -r line; do
+	while read -r tagged_commit; do
 		# Step back one tag  at a time...
-		eval $stash
-		git checkout $line
-		eval $unstash
+		git checkout $tagged_commit
 
 		# ...executing any arguments passed until an exit code 0 is returned.
 		__try_command "$@" || break
 
-		prevline=$line
+		prevline=$tagged_commit
 	done < $tagpipe
 
 	"$@" || __fail
 
-	eval $stash
 	git checkout $prevline
 	__print_result
 	git checkout master
-	eval $unstash
-
-	unset -v stash unstash
 }
 
 git_regress_bisect() {
 	local good_commit
 	local bad_commit
 	local cmd
-
-	__define_stash
-	eval $stash
 
 	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
 	while :; do
@@ -147,11 +135,6 @@ git_regress_bisect() {
 	# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
 	cmd="find . -name '*.pyc' -delete && $cmd"
 
-	if [ ! -z "$stash" ]; then
-		# If $cmd fails, we still need to $stash before exiting.
-		cmd="$unstash && $cmd; exitcode=\$? && $stash && if [ \$exitcode -ne 0 ]; then false; fi"
-	fi
-
 	git bisect run eval $cmd
 
 	# Make sure we actually have the culprit checked out.
@@ -165,8 +148,6 @@ git_regress_bisect() {
 	# REPORT & TEARDOWN
 	__print_result
 	git bisect reset
-	eval $unstash
-	unset -v stash unstash
 }
 
 usage() {
@@ -188,23 +169,42 @@ usage() {
 	echo "$help"
 }
 
+# Print Help
+if [ $# == 0 ]; then
+	usage
+	exit 0
+fi
 case $1 in
+	help | "-h" | "--help")
+		usage
+		exit 0
+		;;
+esac
+
+# Tmp Stash
+args=()
+
+for arg do
+	if [ -f "$arg" ]; then
+		cp "$arg" "git-regress-$arg"
+		args+=("git-regress-$arg")
+	else
+		args+=("$arg")
+	fi
+done
+
+__define_stash
+$stash
+
+# Execute Command
+case ${args:0} in
 	bisect | "-b" | "--bisect")
-		shift
-		git_regress_bisect "$@"
+		git_regress_bisect "${args[@]:1}"
 		;;
 	tag | "-t" | "--tag")
-		shift
-		git_regress_tag "$@"
-		;;
-	help | "-h")
-		usage
+		git_regress_tag "${args[@]:1}"
 		;;
 	*)
-		if [ $# == 0 ]; then
-			usage
-		else
-			git_regress "$@"
-		fi
+		git_regress "${args[@]}"
 		;;
 esac

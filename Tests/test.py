@@ -40,7 +40,6 @@ class TestGitRegressBase(unittest.TestCase):
     @classmethod
     def gitClean(cls):
         cls.execute('git', 'reset', '--hard', 'origin/master')
-        raise Exception('Example repo was left dirty.')
 
     @staticmethod
     def relPath(path):
