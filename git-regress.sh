@@ -4,13 +4,19 @@ __teardown() {
 	unset -v args temp_dir
 }
 
-__fail() {
+__exhausted() {
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	echo "REPO EXHAUSTED: Command Never Succeeded."
+	echo "REPO EXHAUSTED: $1"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git checkout master --force
 	__teardown
 	exit 1
+}
+__exhausted_no_success() {
+	__exhausted "Command Never Succeeded"
+}
+__exhausted_no_fail() {
+	__exhausted "Command Never Failed"
 }
 
 __print_result() {
@@ -35,7 +41,7 @@ __define_stash() {
 	fi
 }
 
-__try_command() {
+__assert_command_fails() {
 		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
 		find . -name '*.pyc' -delete
 
@@ -51,13 +57,15 @@ __try_command() {
 }
 
 git_regress() {
+	__assert_command_fails "$@" || __exhausted_no_fail
+
 	while true
 	do
-		# Step back one commit at a time...
-		git checkout HEAD^ || __fail
+		# Step back one tag  at a time...
+		git checkout HEAD^ || __exhausted_no_success
 
 		# ...executing any arguments passed until an exit code 0 is returned.
-		__try_command "$@" || break
+		__assert_command_fails "$@" || break
 	done
 
 	git checkout HEAD@{1}
@@ -70,6 +78,8 @@ git_regress_tag() {
 	local prevline
 	local tagpipe
 
+	__assert_command_fails "$@" || __exhausted_no_fail
+
 	tagpipe=$(mktemp --dry-run)
 	mkfifo "$tagpipe"
 	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > $tagpipe &
@@ -78,12 +88,12 @@ git_regress_tag() {
 		git checkout $tagged_commit
 
 		# ...executing any arguments passed until an exit code 0 is returned.
-		__try_command "$@" || break
+		__assert_command_fails "$@" || break
 
 		prevline=$tagged_commit
 	done < $tagpipe
 
-	"$@" || __fail
+	"$@" || __exhausted_no_success
 
 	git checkout $prevline
 	__print_result
@@ -94,6 +104,8 @@ git_regress_bisect() {
 	local good_commit
 	local bad_commit
 	local cmd
+
+	__assert_command_fails "$@" || __exhausted_no_fail
 
 	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
 	while :; do
@@ -142,7 +154,7 @@ git_regress_bisect() {
 
 	# Make sure previous commit actually succeeds.
 	git checkout HEAD^
-	eval $cmd || __fail
+	eval $cmd || __exhausted_no_success
 	git checkout HEAD@{1}
 
 	# REPORT & TEARDOWN
@@ -181,9 +193,8 @@ case $1 in
 		;;
 esac
 
-# Tmp Stash
+# Copy Modified Files
 args=()
-
 for arg do
 	if [ -f "$arg" ]; then
 		cp "$arg" "git-regress-$arg"
@@ -193,6 +204,7 @@ for arg do
 	fi
 done
 
+# Stash Modified Files
 __define_stash
 $stash
 

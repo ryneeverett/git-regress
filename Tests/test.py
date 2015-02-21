@@ -28,7 +28,11 @@ class TestGitRegressBase(unittest.TestCase):
             'all_bad': {
                 'commit': '',
                 'tag': '',
-                'header': 'REPO EXHAUSTED: Command Never Succeeded.'}
+                'header': 'REPO EXHAUSTED: Command Never Succeeded'},
+            'all_good': {
+                'commit': '',
+                'tag': '',
+                'header': 'REPO EXHAUSTED: Command Never Failed'}
         }
         cls.example_repo_path = os.path.join(ENV.cwd, './example-repo')
         cls.test_file_path = os.path.join(cls.example_repo_path, cls.test_file)
@@ -123,17 +127,14 @@ class TestUntracked(TestGitRegressBase):
     def test_tag_success(self):
         self.result = self.runRegress(['--tag'], 'success')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_consecutive_failure_all_good(self):
-        assert False
+        self.result = self.runRegress([], 'all_good')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_bisect_failure_all_good(self):
-        assert False
+        self.result = self.runRegress(['--bisect'], 'success')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_tag_failure_all_good(self):
-        assert False
+        self.result = self.runRegress(['--tag'], 'all_good')
 
     def test_consecutive_failure_all_bad(self):
         self.result = self.runRegress([], 'all_bad')
@@ -164,17 +165,14 @@ class TestTracked(TestGitRegressBase):
     def test_tag_success(self):
         self.result = self.runRegress(['--tag'], 'success')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_consecutive_failure_all_good(self):
-        assert False
+        self.result = self.runRegress([], 'all_good')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_bisect_failure_all_good(self):
-        assert False
+        self.result = self.runRegress(['--bisect'], 'success')
 
-    @unittest.skip('This edge case is not yet handled.')
     def test_tag_failure_all_good(self):
-        assert False
+        self.result = self.runRegress(['--tag'], 'all_good')
 
     def test_consecutive_failure_all_bad(self):
         self.result = self.runRegress([], 'all_bad')
