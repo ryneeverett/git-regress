@@ -1,49 +1,89 @@
 import os
+import re
+import time
 import pprint
 import shutil
 import unittest
 
+import git
 import scripttest
 
 
+
+
 def setUpModule():
+    this_path = os.path.dirname(os.path.realpath(__file__))
+    resource_path = lambda x: os.path.join(this_path, 'resources', x)
+    repo_path = lambda *args: os.path.join(this_path, 'example-repo', *args)
+    app_path = repo_path('application.py')
+
     global ENV
-    temp_dir = os.path.join(os.path.dirname(
-        os.path.realpath(__file__)), './test-output')
-    ENV = scripttest.TestFileEnvironment(temp_dir)
-    ENV.run(
-        'git', 'clone',
-        'https://ryneeverett@bitbucket.org/ryneeverett/example-repo.git',
-        expect_stderr=True)
+    ENV = scripttest.TestFileEnvironment(repo_path())
+    repo = git.Repo.init(repo_path())
+
+    shutil.copyfile(resource_path('gitignore'), repo_path('.gitignore'))
+    repo.index.add([repo_path('.gitignore')])
+
+    def trivial_commit():
+        with open(repo_path('trivial.txt'), 'a') as trivial_file:
+            trivial_file.write('trivial')
+        repo.index.add([repo_path('trivial.txt')])
+        repo.index.commit('Trivial')
+
+    shutil.copyfile(resource_path('good_application.py'), app_path)
+    repo.index.add([app_path])
+    repo.index.commit('Initial commit.')
+
+    open(repo_path('trivial.txt'), 'w').close()
+    trivial_commit()
+    repo.create_tag('old_release')
+    time.sleep(1)  # HACK to ensure correct tag order
+
+    shutil.copyfile(resource_path('original_test.py'), repo_path('test.py'))
+    repo.index.add([repo_path('test.py')])
+    repo.index.commit('Add test file.')
+
+    trivial_commit()
+    repo.create_tag('good_release')
+    time.sleep(1)  # HACK to ensure correct tag order
+
+    trivial_commit()
+
+    shutil.copyfile(resource_path('bad_application.py'), app_path)
+    repo.index.add([app_path])
+    repo.index.commit('Regression')
+
+    trivial_commit()
+    repo.create_tag('bad_release')
+    time.sleep(1)  # HACK to ensure correct tag order
+
+    trivial_commit()
+
+    global HEAD_SHA
+    HEAD_SHA = repo.heads[0].commit.hexsha
 
 
 class TestGitRegressBase(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.expect = {
-            'success': {
-                'commit': '\ncommit d0af11bbcd70e83c4281628ae29c2b35bfb11fb2',
-                'tag': '\ncommit 0c96d6d6871fb9d8f1e18ad0433215382411a207',
-                'header': 'REGRESSION IDENTIFIED:'},
-            'all_bad': {
-                'commit': '',
-                'tag': '',
-                'header': 'REPO EXHAUSTED: Command Never Succeeded'},
-            'all_good': {
-                'commit': '',
-                'tag': '',
-                'header': 'REPO EXHAUSTED: Command Never Failed'}
+        cls.expect_header = {
+            'success': 'REGRESSION IDENTIFIED:',
+            'all_bad': 'REPO EXHAUSTED: Command Never Succeeded',
+            'all_good': 'REPO EXHAUSTED: Command Never Failed'
         }
-        cls.example_repo_path = os.path.join(ENV.cwd, './example-repo')
-        cls.test_file_path = os.path.join(cls.example_repo_path, cls.test_file)
+        cls.expect_body = {
+            'commit': 'Regression',
+            'tag': 'bad_release'
+        }
+        cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
 
     @classmethod
     def execute(cls, *args, **kwargs):
-        return ENV.run(*args, cwd=cls.example_repo_path, **kwargs)
+        return ENV.run(*args, cwd=ENV.cwd, **kwargs)
 
     @classmethod
     def gitClean(cls):
-        cls.execute('git', 'reset', '--hard', 'origin/master')
+        cls.execute('git', 'reset', '--hard', 'master')
 
     @staticmethod
     def relPath(path):
@@ -73,8 +113,7 @@ class TestGitRegressBase(unittest.TestCase):
 
                 assert not repo_state['files_deleted']
 
-                assert (repo_state['head_sha'] ==
-                        'ba49464222c8c8a3a3ea7a3421b6b4e6e63c8dbf')
+                assert repo_state['head_sha'] == HEAD_SHA
 
                 assert not repo_state['dirty_cwd']
             except AssertionError as error:
@@ -100,9 +139,11 @@ class TestGitRegressBase(unittest.TestCase):
 
         # Test Stdout
         result_type = 'tag' if '--tag' in regress_args else 'commit'
-        expected_stdout = '-+\n{header}\n-+{commit}'.format(
-            header=self.expect[test_result]['header'],
-            commit=self.expect[test_result][result_type])
+        expected_stdout = re.compile(
+            '-+\n{header}\n-+\n.*{body}'.format(
+                header=self.expect_header[test_result],
+                body='' if expect_error else self.expect_body[result_type]),
+            re.DOTALL)
         self.assertRegex(result.stdout, expected_stdout)
 
         return result

@@ -61,7 +61,7 @@ git_regress() {
 
 	while true
 	do
-		# Step back one tag  at a time...
+		# Step back one commit at a time...
 		git checkout HEAD^ || __exhausted_no_success
 
 		# ...executing any arguments passed until an exit code 0 is returned.
