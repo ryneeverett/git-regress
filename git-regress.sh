@@ -3,8 +3,9 @@ __setup() {
 	args=()
 	for arg do
 		if [ -f "$arg" ]; then
-			cp "$arg" "git-regress-$arg"
-			args+=("git-regress-$arg")
+			local tmp_path="$(dirname $arg)/git-regress-tmp-$(basename $arg)"
+			cp "$arg" $tmp_path
+			args+=("$tmp_path")
 		else
 			args+=("$arg")
 		fi
@@ -16,7 +17,7 @@ __setup() {
 }
 __teardown() {
 	unset -v args
-	find . -name 'git-regress-*' -delete
+	find . -name 'git-regress-tmp-*' -delete
 	$unstash
 }
 
