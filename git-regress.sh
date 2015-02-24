@@ -191,17 +191,16 @@ usage() {
 	EOF
 
 	echo "$help"
+	exit 0
 }
 
 # Print Help
 if [ $# == 0 ]; then
 	usage
-	exit 0
 fi
 case $1 in
 	help | "-h" | "--help")
 		usage
-		exit 0
 		;;
 esac
 
