@@ -92,11 +92,10 @@ git_regress() {
 git_regress_tag() {
 # Identify the tag in which the regression was introduced.
 	local prevline
-	local tagpipe
 
 	__assert_command_fails "$@" || __exhausted_no_fail
 
-	tagpipe=$(mktemp --dry-run)
+	local tagpipe=$(mktemp --dry-run)
 	mkfifo "$tagpipe"
 	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > $tagpipe &
 	while read -r tagged_commit; do
@@ -117,22 +116,18 @@ git_regress_tag() {
 }
 
 git_regress_bisect() {
-	local good_commit
-	local bad_commit
-	local cmd
-
 	__assert_command_fails "$@" || __exhausted_no_fail
 
 	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
 	while :; do
 		case $1 in
 			good | "--good")
-				good_commit=$2
+				local good_commit=$2
 				shift 2
 				continue
 				;;
 			bad | "--bad")
-				bad_commit=$2
+				local bad_commit=$2
 				shift 2
 				continue
 				;;
@@ -141,7 +136,7 @@ git_regress_bisect() {
 					break
 				fi
 
-				cmd="$cmd $1"
+				local cmd="$cmd $1"
 				shift
 		esac
 	done
