@@ -1,7 +1,23 @@
+__setup() {
+	# Copy Modified Files
+	args=()
+	for arg do
+		if [ -f "$arg" ]; then
+			cp "$arg" "git-regress-$arg"
+			args+=("git-regress-$arg")
+		else
+			args+=("$arg")
+		fi
+	done
+
+	# Stash Modified Files
+	__define_stash
+	$stash
+}
 __teardown() {
+	unset -v args
 	find . -name 'git-regress-*' -delete
 	$unstash
-	unset -v args temp_dir
 }
 
 __exhausted() {
@@ -193,20 +209,8 @@ case $1 in
 		;;
 esac
 
-# Copy Modified Files
-args=()
-for arg do
-	if [ -f "$arg" ]; then
-		cp "$arg" "git-regress-$arg"
-		args+=("git-regress-$arg")
-	else
-		args+=("$arg")
-	fi
-done
-
-# Stash Modified Files
-__define_stash
-$stash
+# Initialize $args and stash modified files.
+__setup $@
 
 # Execute Command
 case ${args:0} in
