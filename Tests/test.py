@@ -9,8 +9,6 @@ import git
 import scripttest
 
 
-
-
 def setUpModule():
     this_path = os.path.dirname(os.path.realpath(__file__))
     resource_path = lambda x: os.path.join(this_path, 'resources', x)

@@ -1,4 +1,6 @@
 __setup() {
+	trap __teardown EXIT
+
 	# Copy Modified Files
 	args=()
 	for arg do
@@ -26,7 +28,6 @@ __exhausted() {
 	echo "REPO EXHAUSTED: $1"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git checkout master --force
-	__teardown
 	exit 1
 }
 __exhausted_no_success() {
@@ -41,7 +42,6 @@ __print_result() {
 	echo "REGRESSION IDENTIFIED:"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git log -1 -p --stat --decorate
-	__teardown
 }
 
 __define_stash() {
