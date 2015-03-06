@@ -1,7 +1,7 @@
 __setup() {
 	trap __teardown EXIT
 
-	# Copy Modified Files
+	# Copy files passed as arguments.
 	args=()
 	for arg do
 		if [ -f "$arg" ]; then
@@ -13,12 +13,18 @@ __setup() {
 		fi
 	done
 
-	# Stash Modified Files
-	__define_stash
-	$stash
+	# Stash if there are unstaged changes.
+	git diff-files --quiet
+	if [[ $? == 1 ]]; then
+		git stash
+		unstash="git stash apply"
+	else
+		unstash=""
+	fi
+
 }
 __teardown() {
-	unset -v args
+	unset -v args unstash
 	find . -name 'git-regress-tmp-*' -delete
 	$unstash
 }
@@ -42,20 +48,6 @@ __print_result() {
 	echo "REGRESSION IDENTIFIED:"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	git log -1 -p --stat --decorate
-}
-
-__define_stash() {
-	unset -v stash unstash
-
-	# Only stash if there are unstaged changes.
-	git diff-files --quiet
-	if [[ $? == 1 ]]; then
-		stash="git stash"
-		unstash="git stash apply"
-	else
-		stash=""
-		unstash=""
-	fi
 }
 
 __assert_command_fails() {
