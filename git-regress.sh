@@ -6,7 +6,7 @@ __setup() {
 	for arg do
 		if [ -f "$arg" ]; then
 			local tmp_path="$(dirname $arg)/git-regress-tmp-$(basename $arg)"
-			cp "$arg" $tmp_path
+			cp "$arg" "$tmp_path"
 			args+=("$tmp_path")
 		else
 			args+=("$arg")
@@ -77,7 +77,7 @@ git_regress() {
 		__assert_command_fails "$@" || break
 	done
 
-	git checkout HEAD@{1}
+	git checkout 'HEAD@{1}'
 	__print_result
 	git checkout master
 }
@@ -90,20 +90,20 @@ git_regress_tag() {
 
 	local tagpipe=$(mktemp --dry-run)
 	mkfifo "$tagpipe"
-	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > $tagpipe &
+	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > "$tagpipe" &
 	while read -r tagged_commit; do
 		# Step back one tag  at a time...
-		git checkout $tagged_commit
+		git checkout "$tagged_commit"
 
 		# ...executing any arguments passed until an exit code 0 is returned.
 		__assert_command_fails "$@" || break
 
 		prevline=$tagged_commit
-	done < $tagpipe
+	done < "$tagpipe"
 
 	"$@" || __exhausted_no_success
 
-	git checkout $prevline
+	git checkout "$prevline"
 	__print_result
 	git checkout master
 }
@@ -137,29 +137,29 @@ git_regress_bisect() {
 	# ASSIGN DEFAULTS
 	if [ -z "$good_commit" ]; then
 		# default: first commit
-		good_commit=`git log --pretty=oneline | tail -1 | awk  '{print $1;}'`
+		good_commit=$(git log --pretty=oneline | tail -1 | awk  '{print $1;}')
 	fi
 	if [ -z "$bad_commit" ]; then
 		# default: current commit
-		bad_commit=`git log --pretty=oneline -1 | awk '{print $1;}'`
+		bad_commit=$(git log --pretty=oneline -1 | awk '{print $1;}')
 	fi
 
 	# BISECT
 	echo "Bisecting bad commit $bad_commit and good commit $good_commit ."
-	git bisect start $bad_commit $good_commit
+	git bisect start "$bad_commit" "$good_commit"
 
 	# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
 	cmd="find . -name '*.pyc' -delete && $cmd"
 
-	git bisect run eval $cmd
+	git bisect run eval "$cmd"
 
 	# Make sure we actually have the culprit checked out.
-	git checkout $(git bisect view --format="%H")
+	git checkout "$(git bisect view --format="%H")"
 
 	# Make sure previous commit actually succeeds.
 	git checkout HEAD^
-	eval $cmd || __exhausted_no_success
-	git checkout HEAD@{1}
+	eval "$cmd" || __exhausted_no_success
+	git checkout 'HEAD@{1}'
 
 	# REPORT & TEARDOWN
 	__print_result
@@ -197,7 +197,7 @@ case $1 in
 esac
 
 # Initialize $args and stash modified files.
-__setup $@
+__setup "$@"
 
 # Execute Command
 case ${args:0} in
