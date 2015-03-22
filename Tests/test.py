@@ -1,8 +1,10 @@
 import os
 import re
+import sys
 import time
 import pprint
 import shutil
+import argparse
 import unittest
 
 import git
@@ -127,7 +129,10 @@ class TestGitRegressBase(unittest.TestCase):
             ['python', self.test_file, 'TestApp.test_' + test_result])
         result = self.execute(
             'sh', self.relPath('../git-regress.sh'), *regress_args,
-            expect_stderr=True, expect_error=expect_error)
+            expect_stderr=True, expect_error=expect_error, debug=DEBUG)
+
+        if DEBUG:
+            raise Exception('In debug mode, assertions are not tested.')
 
         # Test Return Code
         if test_result =='success':
@@ -224,4 +229,11 @@ class TestTracked(TestGitRegressBase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-d', '--debug', action='store_true')
+    options, args = parser.parse_known_args()
+
+    global DEBUG
+    DEBUG = options.debug
+
+    unittest.main(argv=sys.argv[:1] + args)
