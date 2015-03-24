@@ -6,6 +6,7 @@ import pprint
 import shutil
 import argparse
 import unittest
+import subprocess
 
 import git
 import scripttest
@@ -124,18 +125,24 @@ class TestGitRegressBase(unittest.TestCase):
     def runRegress(self, regress_args, test_result):
         # Run Regress
         expect_error = bool(test_result != 'success')
-        regress_args = (
-            regress_args +
+        command = (
+            [self.relPath('../git-regress.sh')] + regress_args +
             ['python', self.test_file, 'TestApp.test_' + test_result])
-        result = self.execute(
-            'sh', self.relPath('../git-regress.sh'), *regress_args,
-            expect_stderr=True, expect_error=expect_error, debug=DEBUG)
+
+        if DEBUG in ['sh', 'all']:
+            subprocess.call(
+                ['/bin/sh', '-x'] + command, cwd=ENV.cwd,
+                stdout=subprocess.DEVNULL if DEBUG == 'sh' else None)
+        else:
+            result = self.execute(
+                '/bin/sh', *command, expect_stderr=True,
+                expect_error=expect_error, debug=bool(DEBUG == 'term'))
 
         if DEBUG:
             raise Exception('In debug mode, assertions are not tested.')
 
         # Test Return Code
-        if test_result =='success':
+        if test_result == 'success':
             self.assertEqual(result.returncode, 0)
         else:
             self.assertNotEqual(result.returncode, 0)
@@ -189,6 +196,7 @@ class TestUntracked(TestGitRegressBase):
     def test_tag_failure_all_bad(self):
         self.result = self.runRegress(['--tag'], 'all_bad')
 
+
 class TestTracked(TestGitRegressBase):
     @classmethod
     def setUpClass(cls):
@@ -230,7 +238,9 @@ class TestTracked(TestGitRegressBase):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-d', '--debug', action='store_true')
+    parser.add_argument(
+        '-d', '--debug', choices=['term', 'sh', 'all'],
+        help="Write output to 'term'inal, debug 'sh'ell script, or 'all'.")
     options, args = parser.parse_known_args()
 
     global DEBUG
