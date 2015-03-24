@@ -80,7 +80,13 @@ class TestGitRegressBase(unittest.TestCase):
 
     @classmethod
     def execute(cls, *args, **kwargs):
-        return ENV.run(*args, cwd=ENV.cwd, **kwargs)
+        kwargs['cwd'] = ENV.cwd
+        if kwargs.pop('test', False):
+            return ENV.run(*args, **kwargs)
+        else:
+            stdout = kwargs.pop('stdout', subprocess.DEVNULL)
+            stderr = kwargs.pop('stderr', subprocess.DEVNULL)
+            return subprocess.call(args, stdout=stdout, stderr=stderr, **kwargs)
 
     @classmethod
     def gitClean(cls):
@@ -105,9 +111,10 @@ class TestGitRegressBase(unittest.TestCase):
                 'files_created': self.result.files_created,
                 'files_deleted': self.result.files_deleted,
                 'head_sha': self.execute(
-                    'git', 'rev-parse', 'HEAD').stdout.rstrip('\n'),
+                    'git', 'rev-parse', 'HEAD', test=True).stdout.rstrip('\n'),
                 'dirty_cwd': self.execute(
-                    'git', 'status', '--porcelain').stdout.rstrip('\n')}
+                    'git', 'status', '--porcelain',
+                    test=True).stdout.rstrip('\n')}
             try:
                 for f in repo_state['files_created']:
                     assert '__pycache__' in f
@@ -130,13 +137,14 @@ class TestGitRegressBase(unittest.TestCase):
             ['python', self.test_file, 'TestApp.test_' + test_result])
 
         if DEBUG in ['sh', 'all']:
-            subprocess.call(
-                ['/bin/sh', '-x'] + command, cwd=ENV.cwd,
+            self.execute(
+                '/bin/sh', '-x', *command, stderr=None,
                 stdout=subprocess.DEVNULL if DEBUG == 'sh' else None)
         else:
             result = self.execute(
                 '/bin/sh', *command, expect_stderr=True,
-                expect_error=expect_error, debug=bool(DEBUG == 'term'))
+                expect_error=expect_error, debug=bool(DEBUG == 'term'),
+                test=True)
 
         if DEBUG:
             raise Exception('In debug mode, assertions are not tested.')
