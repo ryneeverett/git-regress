@@ -72,7 +72,7 @@ def setUpModule():
     HEAD_SHA = repo.heads[0].commit.hexsha
 
 
-class TestGitRegressBase(unittest.TestCase):
+class AbstractTestBase(object):
     @classmethod
     def setUpClass(cls):
         cls.expect_header = {
@@ -186,124 +186,70 @@ class TestGitRegressBase(unittest.TestCase):
 
         return result
 
+    def test_consecutive_success(self):
+        self.result = self.runRegress([], 'success')
 
-class TestUntracked(TestGitRegressBase):
-    @classmethod
-    def setUpClass(cls):
-        cls.test_file = 'untracked_test.py'
-        super().setUpClass()
+    def test_bisect_success(self):
+        self.result = self.runRegress(['--bisect'], 'success')
+
+    def test_tag_success(self):
+        self.result = self.runRegress(['--tag'], 'success')
+
+    def test_commits_success(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'success', stdin=stdin)
+
+    def test_consecutive_failure_all_good(self):
+        self.result = self.runRegress([], 'all_good')
+
+    def test_bisect_failure_all_good(self):
+        self.result = self.runRegress(['--bisect'], 'success')
+
+    def test_tag_failure_all_good(self):
+        self.result = self.runRegress(['--tag'], 'all_good')
+
+    def test_commits_failure_all_good(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_good', stdin=stdin)
+
+    def test_consecutive_failure_all_bad(self):
+        self.result = self.runRegress([], 'all_bad')
+
+    def test_bisect_failure_all_bad(self):
+        self.result = self.runRegress(['--bisect'], 'all_bad')
+
+    def test_tag_failure_all_bad(self):
+        self.result = self.runRegress(['--tag'], 'all_bad')
+
+    def test_commits_failure_all_bad(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_bad', stdin=stdin)
+
+
+class TestUntracked(AbstractTestBase, unittest.TestCase):
+    test_file = 'untracked_test.py'
 
     def tearDown(self):
         os.remove(self.test_file_path)
         super().tearDown()
 
-    def test_consecutive_success(self):
-        self.result = self.runRegress([], 'success')
 
-    def test_bisect_success(self):
-        self.result = self.runRegress(['--bisect'], 'success')
-
-    def test_tag_success(self):
-        self.result = self.runRegress(['--tag'], 'success')
-
-    def test_commits_success(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'success', stdin=stdin)
-
-    def test_consecutive_failure_all_good(self):
-        self.result = self.runRegress([], 'all_good')
-
-    def test_bisect_failure_all_good(self):
-        self.result = self.runRegress(['--bisect'], 'success')
-
-    def test_tag_failure_all_good(self):
-        self.result = self.runRegress(['--tag'], 'all_good')
-
-    def test_commits_failure_all_good(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_good', stdin=stdin)
-
-    def test_consecutive_failure_all_bad(self):
-        self.result = self.runRegress([], 'all_bad')
-
-    def test_bisect_failure_all_bad(self):
-        self.result = self.runRegress(['--bisect'], 'all_bad')
-
-    def test_tag_failure_all_bad(self):
-        self.result = self.runRegress(['--tag'], 'all_bad')
-
-    def test_commits_failure_all_bad(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_bad', stdin=stdin)
-
-
-class TestTracked(TestGitRegressBase):
-    @classmethod
-    def setUpClass(cls):
-        cls.test_file = 'test.py'
-        super().setUpClass()
+class TestTracked(AbstractTestBase, unittest.TestCase):
+    test_file = 'test.py'
 
     def tearDown(self):
         self.execute('git', 'reset', 'HEAD', self.test_file_path)
         self.execute('git', 'checkout', self.test_file_path)
         super().tearDown()
-
-    def test_consecutive_success(self):
-        self.result = self.runRegress([], 'success')
-
-    def test_bisect_success(self):
-        self.result = self.runRegress(['--bisect'], 'success')
-
-    def test_tag_success(self):
-        self.result = self.runRegress(['--tag'], 'success')
-
-    def test_commits_success(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'success', stdin=stdin)
-
-    def test_consecutive_failure_all_good(self):
-        self.result = self.runRegress([], 'all_good')
-
-    def test_bisect_failure_all_good(self):
-        self.result = self.runRegress(['--bisect'], 'success')
-
-    def test_tag_failure_all_good(self):
-        self.result = self.runRegress(['--tag'], 'all_good')
-
-    def test_commits_failure_all_good(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_good', stdin=stdin)
-
-    def test_consecutive_failure_all_bad(self):
-        self.result = self.runRegress([], 'all_bad')
-
-    def test_bisect_failure_all_bad(self):
-        self.result = self.runRegress(['--bisect'], 'all_bad')
-
-    def test_tag_failure_all_bad(self):
-        self.result = self.runRegress(['--tag'], 'all_bad')
-
-    def test_commits_failure_all_bad(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_bad', stdin=stdin)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
