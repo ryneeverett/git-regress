@@ -25,11 +25,15 @@ def setUpModule():
     shutil.copyfile(resource_path('gitignore'), repo_path('.gitignore'))
     repo.index.add([repo_path('.gitignore')])
 
-    def trivial_commit():
+    def trivial_commit(verbose=False, append=''):
+        message = 'Trivial'
+        if verbose:
+            message+='. Implement pointlessness{0}.'.format(append)
+
         with open(repo_path('trivial.txt'), 'a') as trivial_file:
             trivial_file.write('trivial')
         repo.index.add([repo_path('trivial.txt')])
-        repo.index.commit('Trivial')
+        repo.index.commit(message)
 
     shutil.copyfile(resource_path('good_application.py'), app_path)
     repo.index.add([app_path])
@@ -37,6 +41,7 @@ def setUpModule():
 
     open(repo_path('trivial.txt'), 'w').close()
     trivial_commit()
+    trivial_commit(verbose=True)
     repo.create_tag('old_release')
     time.sleep(1)  # HACK to ensure correct tag order
 
@@ -44,21 +49,24 @@ def setUpModule():
     repo.index.add([repo_path('test.py')])
     repo.index.commit('Add test file.')
 
+    trivial_commit(verbose=True)
     trivial_commit()
     repo.create_tag('good_release')
     time.sleep(1)  # HACK to ensure correct tag order
 
     trivial_commit()
+    trivial_commit(verbose=True)
 
     shutil.copyfile(resource_path('bad_application.py'), app_path)
     repo.index.add([app_path])
     repo.index.commit('Regression')
 
     trivial_commit()
+    trivial_commit(verbose=True, append=' after regression')
     repo.create_tag('bad_release')
     time.sleep(1)  # HACK to ensure correct tag order
 
-    trivial_commit()
+    trivial_commit(verbose=True)
 
     global HEAD_SHA
     HEAD_SHA = repo.heads[0].commit.hexsha
@@ -74,19 +82,25 @@ class TestGitRegressBase(unittest.TestCase):
         }
         cls.expect_body = {
             'commit': 'Regression',
-            'tag': 'bad_release'
+            'tag': 'bad_release',
+            'pointless': 'Trivial. Implement pointlessness after regression.'
         }
         cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
 
     @classmethod
     def execute(cls, *args, **kwargs):
+        if DEBUG and kwargs.get('stdin', False):
+            raise Exception('In debug mode, data cannot be sent to stdin.')
         kwargs['cwd'] = ENV.cwd
+
         if kwargs.pop('test', False):
             return ENV.run(*args, **kwargs)
         else:
             stdout = kwargs.pop('stdout', subprocess.DEVNULL)
             stderr = kwargs.pop('stderr', subprocess.DEVNULL)
-            return subprocess.call(args, stdout=stdout, stderr=stderr, **kwargs)
+            p = subprocess.Popen(args, stdout=stdout, stderr=stderr, **kwargs)
+            p.wait()
+            return p
 
     @classmethod
     def gitClean(cls):
@@ -129,7 +143,7 @@ class TestGitRegressBase(unittest.TestCase):
                 raise Exception('Test changed temp directory state:\n' +
                                 pprint.pformat(repo_state)) from error
 
-    def runRegress(self, regress_args, test_result):
+    def runRegress(self, regress_args, test_result, **kwargs):
         # Run Regress
         expect_error = bool(test_result != 'success')
         command = (
@@ -139,12 +153,12 @@ class TestGitRegressBase(unittest.TestCase):
         if DEBUG in ['sh', 'all']:
             self.execute(
                 '/bin/sh', '-x', *command, stderr=None,
-                stdout=subprocess.DEVNULL if DEBUG == 'sh' else None)
+                stdout=subprocess.DEVNULL if DEBUG == 'sh' else None, **kwargs)
         else:
             result = self.execute(
                 '/bin/sh', *command, expect_stderr=True,
                 expect_error=expect_error, debug=bool(DEBUG == 'term'),
-                test=True)
+                test=True, **kwargs)
 
         if DEBUG:
             raise Exception('In debug mode, assertions are not tested.')
@@ -156,7 +170,13 @@ class TestGitRegressBase(unittest.TestCase):
             self.assertNotEqual(result.returncode, 0)
 
         # Test Stdout
-        result_type = 'tag' if '--tag' in regress_args else 'commit'
+        if '--tag' in regress_args:
+            result_type = 'tag'
+        elif '--commits' in regress_args:
+            result_type = 'pointless'
+        else:
+            result_type = 'commit'
+
         expected_stdout = re.compile(
             '-+\n{header}\n-+\n.*{body}'.format(
                 header=self.expect_header[test_result],
@@ -186,6 +206,13 @@ class TestUntracked(TestGitRegressBase):
     def test_tag_success(self):
         self.result = self.runRegress(['--tag'], 'success')
 
+    def test_commits_success(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'success', stdin=stdin)
+
     def test_consecutive_failure_all_good(self):
         self.result = self.runRegress([], 'all_good')
 
@@ -195,6 +222,13 @@ class TestUntracked(TestGitRegressBase):
     def test_tag_failure_all_good(self):
         self.result = self.runRegress(['--tag'], 'all_good')
 
+    def test_commits_failure_all_good(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_good', stdin=stdin)
+
     def test_consecutive_failure_all_bad(self):
         self.result = self.runRegress([], 'all_bad')
 
@@ -203,6 +237,13 @@ class TestUntracked(TestGitRegressBase):
 
     def test_tag_failure_all_bad(self):
         self.result = self.runRegress(['--tag'], 'all_bad')
+
+    def test_commits_failure_all_bad(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_bad', stdin=stdin)
 
 
 class TestTracked(TestGitRegressBase):
@@ -225,6 +266,13 @@ class TestTracked(TestGitRegressBase):
     def test_tag_success(self):
         self.result = self.runRegress(['--tag'], 'success')
 
+    def test_commits_success(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'success', stdin=stdin)
+
     def test_consecutive_failure_all_good(self):
         self.result = self.runRegress([], 'all_good')
 
@@ -233,6 +281,13 @@ class TestTracked(TestGitRegressBase):
 
     def test_tag_failure_all_good(self):
         self.result = self.runRegress(['--tag'], 'all_good')
+
+    def test_commits_failure_all_good(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_good', stdin=stdin)
 
     def test_consecutive_failure_all_bad(self):
         self.result = self.runRegress([], 'all_bad')
@@ -243,6 +298,12 @@ class TestTracked(TestGitRegressBase):
     def test_tag_failure_all_bad(self):
         self.result = self.runRegress(['--tag'], 'all_bad')
 
+    def test_commits_failure_all_bad(self):
+        stdin = self.execute(
+            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        self.result = self.runRegress(
+            ['--commits', '-'], 'all_bad', stdin=stdin)
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()

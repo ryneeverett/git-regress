@@ -1,16 +1,30 @@
 __setup() {
 	trap __teardown EXIT
 
-	# Copy files passed as arguments.
 	args=()
-	for arg do
-		if [ -f "$arg" ]; then
-			local tmp_path="$(dirname $arg)/git-regress-tmp-$(basename $arg)"
-			cp "$arg" "$tmp_path"
-			args+=("$tmp_path")
-		else
-			args+=("$arg")
-		fi
+        while [ "${1+defined}" ]; do
+		case $1 in
+			"-c" | "--commits")
+                                if [ "$2" == '-' ]; then
+                                        commits=$(</dev/stdin)
+                                else
+                                        commits=$2
+                                fi
+				shift 2
+				continue
+				;;
+			*)
+                                if [ -f "$1" ]; then
+                                        # Copy files passed as arguments.
+                                        local tmp_path="$(dirname $1)/git-regress-tmp-$(basename $1)"
+                                        cp "$1" "$tmp_path"
+                                        args+=("$tmp_path")
+                                else
+                                        args+=("$1")
+                                fi
+				shift
+                                ;;
+		esac
 	done
 
 	# Stash if there are unstaged changes.
@@ -24,7 +38,7 @@ __setup() {
 
 }
 __teardown() {
-	unset -v args unstash
+	unset -v args commits unstash
 	find . -name 'git-regress-tmp-*' -delete
 	$unstash
 }
@@ -78,6 +92,33 @@ git_regress() {
 	done
 
 	git checkout 'HEAD@{1}'
+	__print_result
+	git checkout master
+}
+
+git_regress_commits() {
+        local commit prevline
+
+        # Check out first commit
+        read -r commit < "$commits"
+        git checkout "$commit"
+
+	__assert_command_fails "$@" || __exhausted_no_fail
+
+
+        while read -r commit;  do
+		# Step back one commit at a time...
+		git checkout "$commit"
+
+		# ...executing any arguments passed until an exit code 0 is returned.
+		__assert_command_fails "$@" || break
+
+                prevline=$commit
+        done <<< "$commits"
+
+	"$@" || __exhausted_no_success
+
+	git checkout "$prevline"
 	__print_result
 	git checkout master
 }
@@ -171,10 +212,10 @@ usage() {
 	Searches through commits, looking for the most recent in
 	which <cmd> suceeds (exit code 0).
 
-	git regress <cmd>
-	    (default) Step back one commit at a time.
+	git regress <cmd> [--commits <sha's>]
+	    (default) Linear search through commits.
 	git regress tag <cmd>
-	    Step back only through tagged commits.
+	    Linear search only through tagged commits.
 	git regress bisect [--good <sha>] [--bad <sha>] <cmd>
 	    Binary search through commits between bad and good.
 
@@ -208,6 +249,11 @@ case ${args:0} in
 		git_regress_tag "${args[@]:1}"
 		;;
 	*)
-		git_regress "${args[@]}"
+                # if [[ " ${args[@]} " == *" --commits "* ]]; then
+                if [ -n "$commits" ]; then
+                        git_regress_commits "${args[@]}"
+                else
+                        git_regress "${args[@]}"
+                fi
 		;;
 esac
