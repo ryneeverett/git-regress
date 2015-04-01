@@ -150,9 +150,10 @@ class AbstractTestBase(object):
         self.result = self.runRegress(['--tag'], 'success')
 
     def test_commits_success(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        with self.execute(
+                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
+            stdin = commits.stdout.read()
         self.result = self.runRegress(
             ['--commits', '-'], 'success', stdin=stdin)
 
@@ -166,9 +167,10 @@ class AbstractTestBase(object):
         self.result = self.runRegress(['--tag'], 'all_good')
 
     def test_commits_failure_all_good(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        with self.execute(
+                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
+            stdin = commits.stdout.read()
         self.result = self.runRegress(
             ['--commits', '-'], 'all_good', stdin=stdin)
 
@@ -182,9 +184,10 @@ class AbstractTestBase(object):
         self.result = self.runRegress(['--tag'], 'all_bad')
 
     def test_commits_failure_all_bad(self):
-        stdin = self.execute(
-            'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-            stdout=subprocess.PIPE, stderr=subprocess.PIPE).stdout.read()
+        with self.execute(
+                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
+            stdin = commits.stdout.read()
         self.result = self.runRegress(
             ['--commits', '-'], 'all_bad', stdin=stdin)
 
