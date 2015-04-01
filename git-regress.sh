@@ -38,9 +38,9 @@ __setup() {
 
 }
 __teardown() {
+	$unstash
 	unset -v args commits unstash
 	find . -name 'git-regress-tmp-*' -delete
-	$unstash
 }
 
 __exhausted() {

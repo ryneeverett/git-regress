@@ -72,8 +72,8 @@ Switched to branch 'master'
 Your branch is up-to-date with 'origin/master'.
 ```
 
-git regress --commit
---------------------
+git regress --commits
+---------------------
 
 This is useful in combination with `git rev-list` to limit the commits under test.
 

@@ -88,7 +88,16 @@ class AbstractTestBase(object):
         cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
 
     @classmethod
-    def execute(cls, *args, **kwargs):
+    def gitClean(cls):
+        cls.execute('git', 'reset', '--hard', 'master')
+
+    @classmethod
+    def gitStatus(cls):
+        return cls.execute(
+            'git', 'status', '--porcelain', test=True).stdout.rstrip('\n')
+
+    @staticmethod
+    def execute(*args, **kwargs):
         if DEBUG and kwargs.get('stdin', False):
             raise Exception('In debug mode, data cannot be sent to stdin.')
         kwargs['cwd'] = ENV.cwd
@@ -101,10 +110,6 @@ class AbstractTestBase(object):
             p = subprocess.Popen(args, stdout=stdout, stderr=stderr, **kwargs)
             p.wait()
             return p
-
-    @classmethod
-    def gitClean(cls):
-        cls.execute('git', 'reset', '--hard', 'master')
 
     @staticmethod
     def relPath(path):
@@ -126,9 +131,7 @@ class AbstractTestBase(object):
                 'files_deleted': self.result.files_deleted,
                 'head_sha': self.execute(
                     'git', 'rev-parse', 'HEAD', test=True).stdout.rstrip('\n'),
-                'dirty_cwd': self.execute(
-                    'git', 'status', '--porcelain',
-                    test=True).stdout.rstrip('\n')}
+                'dirty_cwd': self.gitStatus()}
             try:
                 for f in repo_state['files_created']:
                     assert '__pycache__' in f
@@ -247,6 +250,7 @@ class TestTracked(AbstractTestBase, unittest.TestCase):
     test_file = 'test.py'
 
     def tearDown(self):
+        self.assertIn(self.test_file, self.gitStatus())
         self.execute('git', 'reset', 'HEAD', self.test_file_path)
         self.execute('git', 'checkout', self.test_file_path)
         super().tearDown()
