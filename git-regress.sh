@@ -100,7 +100,7 @@ git_regress_commits() {
         local commit prevline
 
         # Check out first commit
-        read -r commit < "$commits"
+        commit=$(echo "$commits" | awk '{print $1; exit}')
         git checkout "$commit"
 
 	__assert_command_fails "$@" || __exhausted_no_fail
