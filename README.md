@@ -72,6 +72,45 @@ Switched to branch 'master'
 Your branch is up-to-date with 'origin/master'.
 ```
 
+git regress --commit
+--------------------
+
+This is useful in combination with `git rev-list` to limit the commits under test.
+
+```sh
+cd Tests/example-repo
+cp ../resources/modified_test.py .
+git rev-list HEAD --grep pointlessness | git regress --commits - python modified_test.py TestApp.test_success
+```
+
+...
+
+```
+----------------------------------------------------------------------------------------------------------------------------------
+REGRESSION IDENTIFIED:
+----------------------------------------------------------------------------------------------------------------------------------
+commit 9de5433886b3f70be37dbc9c59e02797f3a365ec (HEAD, tag: bad_release)
+Author: ryneeverett <ryneeverett@gmail.com>
+Date:   Tue Mar 31 21:37:59 2015 -0400
+
+    Trivial. Implement pointlessness after regression.
+---
+ trivial.txt | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/trivial.txt b/trivial.txt
+index f3b0091..9a34e2e 100644
+--- a/trivial.txt
++++ b/trivial.txt
+@@ -1 +1 @@
+-trivialtrivialtrivialtrivialtrivialtrivialtrivial
+\ No newline at end of file
++trivialtrivialtrivialtrivialtrivialtrivialtrivialtrivial
+\ No newline at end of file
+Previous HEAD position was 9de5433... Trivial. Implement pointlessness after regression.
+Switched to branch 'master'
+```
+
 git regress bisect
 ------------------
 
