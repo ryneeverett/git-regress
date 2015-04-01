@@ -1,2 +1,1 @@
-gitpython
 git+https://github.com/ryneeverett/scripttest.git@debug

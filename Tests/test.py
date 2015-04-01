@@ -1,75 +1,26 @@
 import os
 import re
 import sys
-import time
 import pprint
 import shutil
 import argparse
 import unittest
 import subprocess
 
-import git
 import scripttest
 
 
 def setUpModule():
-    this_path = os.path.dirname(os.path.realpath(__file__))
-    resource_path = lambda x: os.path.join(this_path, 'resources', x)
-    repo_path = lambda *args: os.path.join(this_path, 'example-repo', *args)
-    app_path = repo_path('application.py')
+    repo_path = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
     global ENV
-    ENV = scripttest.TestFileEnvironment(repo_path())
-    repo = git.Repo.init(repo_path())
+    ENV = scripttest.TestFileEnvironment(repo_path)
 
-    shutil.copyfile(resource_path('gitignore'), repo_path('.gitignore'))
-    repo.index.add([repo_path('.gitignore')])
-
-    def trivial_commit(verbose=False, append=''):
-        message = 'Trivial'
-        if verbose:
-            message+='. Implement pointlessness{0}.'.format(append)
-
-        with open(repo_path('trivial.txt'), 'a') as trivial_file:
-            trivial_file.write('trivial')
-        repo.index.add([repo_path('trivial.txt')])
-        repo.index.commit(message)
-
-    shutil.copyfile(resource_path('good_application.py'), app_path)
-    repo.index.add([app_path])
-    repo.index.commit('Initial commit.')
-
-    open(repo_path('trivial.txt'), 'w').close()
-    trivial_commit()
-    trivial_commit(verbose=True)
-    repo.create_tag('old_release')
-    time.sleep(1)  # HACK to ensure correct tag order
-
-    shutil.copyfile(resource_path('original_test.py'), repo_path('test.py'))
-    repo.index.add([repo_path('test.py')])
-    repo.index.commit('Add test file.')
-
-    trivial_commit(verbose=True)
-    trivial_commit()
-    repo.create_tag('good_release')
-    time.sleep(1)  # HACK to ensure correct tag order
-
-    trivial_commit()
-    trivial_commit(verbose=True)
-
-    shutil.copyfile(resource_path('bad_application.py'), app_path)
-    repo.index.add([app_path])
-    repo.index.commit('Regression')
-
-    trivial_commit()
-    trivial_commit(verbose=True, append=' after regression')
-    repo.create_tag('bad_release')
-    time.sleep(1)  # HACK to ensure correct tag order
-
-    trivial_commit(verbose=True)
+    ENV.run('../resources/setup.sh')
 
     global HEAD_SHA
-    HEAD_SHA = repo.heads[0].commit.hexsha
+    HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
 
 
 class AbstractTestBase(object):
@@ -100,14 +51,14 @@ class AbstractTestBase(object):
     def execute(*args, **kwargs):
         if DEBUG and kwargs.get('stdin', False):
             raise Exception('In debug mode, data cannot be sent to stdin.')
-        kwargs['cwd'] = ENV.cwd
 
         if kwargs.pop('test', False):
             return ENV.run(*args, **kwargs)
         else:
             stdout = kwargs.pop('stdout', subprocess.DEVNULL)
             stderr = kwargs.pop('stderr', subprocess.DEVNULL)
-            p = subprocess.Popen(args, stdout=stdout, stderr=stderr, **kwargs)
+            p = subprocess.Popen(
+                args, stdout=stdout, stderr=stderr, cwd=ENV.cwd, **kwargs)
             p.wait()
             return p
 
