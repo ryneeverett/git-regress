@@ -15,6 +15,7 @@ __trivial_commit() {
 
 __git_tag() {
         git tag -a "$1" -m "$1"
+        sleep 1  # HACK to ensure correct tag order
 }
 
 git init
@@ -29,7 +30,6 @@ __trivial_commit
 
 __trivial_commit verbose=true
 __git_tag 'old_release'
-sleep 1  # HACK to ensure correct tag order
 
 cp ../resources/original_test.py test.py
 git add test.py
@@ -40,7 +40,6 @@ __trivial_commit verbose=true
 __trivial_commit
 
 __git_tag 'good_release'
-sleep 1  # HACK to ensure correct tag order
 
 __trivial_commit
 
@@ -56,6 +55,5 @@ __trivial_commit verbose=true append=' after regression'
 
 __trivial_commit
 __git_tag 'bad_release'
-sleep 1  # HACK to ensure correct tag order
 
 __trivial_commit verbose=true
