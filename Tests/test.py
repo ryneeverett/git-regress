@@ -9,13 +9,12 @@ import subprocess
 
 import scripttest
 
+REPO_PATH = os.path.join(
+    os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
 def setUpModule():
-    repo_path = os.path.join(
-        os.path.dirname(os.path.realpath(__file__)), 'example-repo')
-
     global ENV
-    ENV = scripttest.TestFileEnvironment(repo_path)
+    ENV = scripttest.TestFileEnvironment(REPO_PATH)
 
     ENV.run('../resources/setup.sh')
 
@@ -84,10 +83,11 @@ class TestBase(object):
                     'git', 'rev-parse', 'HEAD', test=True).stdout.rstrip('\n'),
                 'dirty_cwd': self.gitStatus()}
             try:
-                for f in repo_state['files_created']:
+                state_changes = (
+                    list(repo_state['files_created'].keys()) +
+                    list(repo_state['files_deleted'].keys()))
+                for f in state_changes:
                     assert '__pycache__' in f
-
-                assert not repo_state['files_deleted']
 
                 assert repo_state['head_sha'] == HEAD_SHA
 
@@ -97,22 +97,24 @@ class TestBase(object):
                 raise Exception('Test changed temp directory state:\n' +
                                 pprint.pformat(repo_state)) from error
 
-    def runRegress(self, regress_args, test_result, **kwargs):
-        # Run Regress
+    def runRegress(self, regress_args, test_result, py_test=True, **kwargs):
         expect_error = bool(test_result != 'success')
-        command = (
-            [self.relPath('../git-regress.sh')] + regress_args +
-            ['python', self.test_file, 'TestApp.test_' + test_result])
+
+        # Run Regress
+        if py_test:
+            regress_args += [
+                'python', self.test_file, 'TestApp.test_' + test_result]
+        command = ['/bin/sh', self.relPath('../git-regress.sh')] + regress_args
 
         if DEBUG in ['sh', 'all']:
+            command.insert(1, '-x')
             self.execute(
-                '/bin/sh', '-x', *command, stderr=None,
+                *command, stderr=None,
                 stdout=subprocess.DEVNULL if DEBUG == 'sh' else None, **kwargs)
         else:
             result = self.execute(
-                '/bin/sh', *command, expect_stderr=True,
-                expect_error=expect_error, debug=bool(DEBUG == 'term'),
-                test=True, **kwargs)
+                *command, expect_stderr=True, expect_error=expect_error,
+                debug=bool(DEBUG == 'term'), test=True, **kwargs)
 
         if DEBUG:
             raise Exception('In debug mode, assertions are not tested.')
@@ -190,6 +192,26 @@ class TestBase(object):
             stdin = commits.stdout.read()
         self.result = self.runRegress(
             ['--commits', '-'], 'all_bad', stdin=stdin)
+
+    def test_modifying_nested_files(self):
+        """
+        issue #16
+
+        The script asserts that nested.txt, which was previously an empty file,
+        does not contain the text we just added to it. If regress is working
+        properly it should contain that text because it was copied to a temp
+        file. Therefore the script will return 1 through all commits, which is
+        why the test_result is 'all_bad'.
+        """
+        nested_file = os.path.join(REPO_PATH, 'subdir/nested.txt')
+        with open(nested_file, 'a') as nested:
+            nested.write('nested file stuff')
+
+        self.result = self.runRegress(
+            ['../resources/test_modifying_nested_files.sh'], 'all_bad',
+            py_test=False)
+
+        open(nested_file, 'w').close()
 
 
 class TestUntracked(TestBase, unittest.TestCase):

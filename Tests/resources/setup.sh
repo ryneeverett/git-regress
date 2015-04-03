@@ -57,3 +57,8 @@ __trivial_commit
 __git_tag 'bad_release'
 
 __trivial_commit verbose=true
+
+mkdir subdir
+touch subdir/nested.txt
+git add subdir
+git commit -m 'Add nested file.'
