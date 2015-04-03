@@ -23,7 +23,7 @@ def setUpModule():
     HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
 
 
-class AbstractTestBase(object):
+class TestBase(object):
     @classmethod
     def setUpClass(cls):
         cls.expect_header = {
@@ -140,7 +140,7 @@ class AbstractTestBase(object):
 
         return result
 
-    def test_consecutive_success(self):
+    def test_linear_success(self):
         self.result = self.runRegress([], 'success')
 
     def test_bisect_success(self):
@@ -157,7 +157,7 @@ class AbstractTestBase(object):
         self.result = self.runRegress(
             ['--commits', '-'], 'success', stdin=stdin)
 
-    def test_consecutive_failure_all_good(self):
+    def test_linear_failure_all_good(self):
         self.result = self.runRegress([], 'all_good')
 
     def test_bisect_failure_all_good(self):
@@ -174,7 +174,7 @@ class AbstractTestBase(object):
         self.result = self.runRegress(
             ['--commits', '-'], 'all_good', stdin=stdin)
 
-    def test_consecutive_failure_all_bad(self):
+    def test_linear_failure_all_bad(self):
         self.result = self.runRegress([], 'all_bad')
 
     def test_bisect_failure_all_bad(self):
@@ -192,7 +192,7 @@ class AbstractTestBase(object):
             ['--commits', '-'], 'all_bad', stdin=stdin)
 
 
-class TestUntracked(AbstractTestBase, unittest.TestCase):
+class TestUntracked(TestBase, unittest.TestCase):
     test_file = 'untracked_test.py'
 
     def tearDown(self):
@@ -200,7 +200,7 @@ class TestUntracked(AbstractTestBase, unittest.TestCase):
         super().tearDown()
 
 
-class TestTracked(AbstractTestBase, unittest.TestCase):
+class TestTracked(TestBase, unittest.TestCase):
     test_file = 'test.py'
 
     def tearDown(self):
