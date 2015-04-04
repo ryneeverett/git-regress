@@ -208,8 +208,8 @@ class TestBase(object):
             nested.write('nested file stuff')
 
         self.result = self.runRegress(
-            ['../resources/test_modifying_nested_files.sh'], 'all_bad',
-            py_test=False)
+            ['../resources/test_modifying_nested_files.sh',
+             'subdir/nested.txt'], 'all_bad', py_test=False)
 
         open(nested_file, 'w').close()
 
