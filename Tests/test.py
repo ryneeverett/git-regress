@@ -163,7 +163,7 @@ class TestBase(object):
         self.result = self.runRegress([], 'all_good')
 
     def test_bisect_failure_all_good(self):
-        self.result = self.runRegress(['--bisect'], 'success')
+        self.result = self.runRegress(['--bisect'], 'all_good')
 
     def test_tag_failure_all_good(self):
         self.result = self.runRegress(['--tag'], 'all_good')
