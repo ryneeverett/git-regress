@@ -197,5 +197,5 @@ Running the Tests
 git clone https://github.com/ryneeverett/git-regress.git
 cd git-regress/Tests
 pip install -r requirements.txt
-python3 test.py --help
+py.test
 ```

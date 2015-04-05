@@ -31,7 +31,7 @@ __trivial_commit
 __trivial_commit verbose=true
 __git_tag 'old_release'
 
-cp ../resources/original_test.py test.py
+cp ../resources/original.py test.py
 git add test.py
 git commit -m 'Add test file.'
 

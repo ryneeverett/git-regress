@@ -1,18 +1,21 @@
 import os
 import re
-import sys
 import pprint
 import shutil
-import argparse
 import unittest
 import subprocess
 
+import pytest
 import scripttest
 
 REPO_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
+
 def setUpModule():
+    global DEBUG
+    DEBUG = pytest.config.getoption('debug')
+
     global ENV
     ENV = scripttest.TestFileEnvironment(REPO_PATH)
 
@@ -22,7 +25,7 @@ def setUpModule():
     HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
 
 
-class TestBase(object):
+class RegressTestBase(object):
     @classmethod
     def setUpClass(cls):
         cls.expect_header = {
@@ -67,7 +70,7 @@ class TestBase(object):
 
     def setUp(self):
         shutil.copyfile(
-            self.relPath('./resources/modified_test.py'), self.test_file_path)
+            self.relPath('./resources/modified.py'), self.test_file_path)
 
     def tearDown(self):
         try:
@@ -208,13 +211,13 @@ class TestBase(object):
             nested.write('nested file stuff')
 
         self.result = self.runRegress(
-            ['../resources/test_modifying_nested_files.sh',
-             'subdir/nested.txt'], 'all_bad', py_test=False)
+            ['../resources/modifying_nested_files.sh', 'subdir/nested.txt'],
+            'all_bad', py_test=False)
 
         open(nested_file, 'w').close()
 
 
-class TestUntracked(TestBase, unittest.TestCase):
+class TestUntracked(RegressTestBase, unittest.TestCase):
     test_file = 'untracked_test.py'
 
     def tearDown(self):
@@ -222,7 +225,7 @@ class TestUntracked(TestBase, unittest.TestCase):
         super().tearDown()
 
 
-class TestTracked(TestBase, unittest.TestCase):
+class TestTracked(RegressTestBase, unittest.TestCase):
     test_file = 'test.py'
 
     def tearDown(self):
@@ -230,15 +233,3 @@ class TestTracked(TestBase, unittest.TestCase):
         self.execute('git', 'reset', 'HEAD', self.test_file_path)
         self.execute('git', 'checkout', self.test_file_path)
         super().tearDown()
-
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser()
-    parser.add_argument(
-        '-d', '--debug', choices=['term', 'sh', 'all'],
-        help="Write output to 'term'inal, debug 'sh'ell script, or 'all'.")
-    options, args = parser.parse_known_args()
-
-    global DEBUG
-    DEBUG = options.debug
-
-    unittest.main(argv=sys.argv[:1] + args)
