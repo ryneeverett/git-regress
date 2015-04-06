@@ -2,7 +2,6 @@ import os
 import re
 import pprint
 import shutil
-import unittest
 import subprocess
 
 import pytest
@@ -12,7 +11,7 @@ REPO_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
 
-def setUpModule():
+def setup_module():
     global DEBUG
     DEBUG = pytest.config.getoption('debug')
 
@@ -27,7 +26,7 @@ def setUpModule():
 
 class RegressTestBase(object):
     @classmethod
-    def setUpClass(cls):
+    def setup_class(cls):
         cls.expect_header = {
             'success': 'REGRESSION IDENTIFIED:',
             'all_bad': 'REPO EXHAUSTED: Command Never Succeeded',
@@ -68,11 +67,11 @@ class RegressTestBase(object):
     def relPath(path):
         return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
 
-    def setUp(self):
+    def setup_method(self, method):
         shutil.copyfile(
             self.relPath('./resources/modified.py'), self.test_file_path)
 
-    def tearDown(self):
+    def teardown_method(self, method):
         try:
             assert hasattr(self, 'result')
         except AssertionError:  # (hopefully) test already failed
@@ -124,9 +123,9 @@ class RegressTestBase(object):
 
         # Test Return Code
         if test_result == 'success':
-            self.assertEqual(result.returncode, 0)
+            assert result.returncode == 0
         else:
-            self.assertNotEqual(result.returncode, 0)
+            assert result.returncode != 0
 
         # Test Stdout
         if '--tag' in regress_args:
@@ -137,11 +136,11 @@ class RegressTestBase(object):
             result_type = 'commit'
 
         expected_stdout = re.compile(
-            '-+\n{header}\n-+\n.*{body}'.format(
+            '.*-+\n{header}\n-+\n.*{body}'.format(
                 header=self.expect_header[test_result],
                 body='' if expect_error else self.expect_body[result_type]),
             re.DOTALL)
-        self.assertRegex(result.stdout, expected_stdout)
+        assert expected_stdout.match(result.stdout)
 
         return result
 
@@ -217,19 +216,19 @@ class RegressTestBase(object):
         open(nested_file, 'w').close()
 
 
-class TestUntracked(RegressTestBase, unittest.TestCase):
+class TestUntracked(RegressTestBase):
     test_file = 'untracked_test.py'
 
-    def tearDown(self):
+    def teardown_method(self, method):
         os.remove(self.test_file_path)
-        super().tearDown()
+        super().teardown_method(method)
 
 
-class TestTracked(RegressTestBase, unittest.TestCase):
+class TestTracked(RegressTestBase):
     test_file = 'test.py'
 
-    def tearDown(self):
-        self.assertIn(self.test_file, self.gitStatus())
+    def teardown_method(self, method):
+        assert self.test_file in self.gitStatus()
         self.execute('git', 'reset', 'HEAD', self.test_file_path)
         self.execute('git', 'checkout', self.test_file_path)
-        super().tearDown()
+        super().teardown_method(method)
