@@ -24,6 +24,11 @@ def setup_module():
     HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
 
 
+@pytest.fixture(params=['success', 'all_good', 'all_bad'])
+def test_result(request):
+    return request.param
+
+
 class RegressTestBase(object):
     @classmethod
     def setup_class(cls):
@@ -144,57 +149,53 @@ class RegressTestBase(object):
 
         return result
 
-    def test_linear_success(self):
-        self.result = self.runRegress([], 'success')
 
-    def test_bisect_success(self):
-        self.result = self.runRegress(['--bisect'], 'success')
+class TestUntracked(RegressTestBase):
+    test_file = 'untracked_test.py'
 
-    def test_tag_success(self):
-        self.result = self.runRegress(['--tag'], 'success')
+    def teardown_method(self, method):
+        os.remove(self.test_file_path)
+        super().teardown_method(method)
 
-    def test_commits_success(self):
+
+class TestTracked(RegressTestBase):
+    test_file = 'test.py'
+
+    def teardown_method(self, method):
+        assert self.test_file in self.gitStatus()
+        self.execute('git', 'reset', 'HEAD', self.test_file_path)
+        self.execute('git', 'checkout', self.test_file_path)
+        super().teardown_method(method)
+
+
+@pytest.mark.usefixtures('test_result')
+class RegressTestFeatures(RegressTestBase):
+    def test_linear(self, test_result):
+        self.result = self.runRegress([], test_result)
+
+    def test_bisect(self, test_result):
+        self.result = self.runRegress(['--bisect'], test_result)
+
+    def test_tag(self, test_result):
+        self.result = self.runRegress(['--tag'], test_result)
+
+    def test_commits(self, test_result):
         with self.execute(
                 'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
             stdin = commits.stdout.read()
         self.result = self.runRegress(
-            ['--commits', '-'], 'success', stdin=stdin)
+            ['--commits', '-'], test_result, stdin=stdin)
 
-    def test_linear_failure_all_good(self):
-        self.result = self.runRegress([], 'all_good')
 
-    def test_bisect_failure_all_good(self):
-        self.result = self.runRegress(['--bisect'], 'all_good')
+class TestFeaturesTracked(RegressTestFeatures, TestTracked):
+    pass
 
-    def test_tag_failure_all_good(self):
-        self.result = self.runRegress(['--tag'], 'all_good')
+class TestFeaturesUntracked(RegressTestFeatures, TestUntracked):
+    pass
 
-    def test_commits_failure_all_good(self):
-        with self.execute(
-                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
-            stdin = commits.stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_good', stdin=stdin)
 
-    def test_linear_failure_all_bad(self):
-        self.result = self.runRegress([], 'all_bad')
-
-    def test_bisect_failure_all_bad(self):
-        self.result = self.runRegress(['--bisect'], 'all_bad')
-
-    def test_tag_failure_all_bad(self):
-        self.result = self.runRegress(['--tag'], 'all_bad')
-
-    def test_commits_failure_all_bad(self):
-        with self.execute(
-                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
-            stdin = commits.stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], 'all_bad', stdin=stdin)
-
+class TestRegressions(TestUntracked):
     def test_modifying_nested_files(self):
         """
         issue #16
@@ -214,21 +215,3 @@ class RegressTestBase(object):
             'all_bad', py_test=False)
 
         open(nested_file, 'w').close()
-
-
-class TestUntracked(RegressTestBase):
-    test_file = 'untracked_test.py'
-
-    def teardown_method(self, method):
-        os.remove(self.test_file_path)
-        super().teardown_method(method)
-
-
-class TestTracked(RegressTestBase):
-    test_file = 'test.py'
-
-    def teardown_method(self, method):
-        assert self.test_file in self.gitStatus()
-        self.execute('git', 'reset', 'HEAD', self.test_file_path)
-        self.execute('git', 'checkout', self.test_file_path)
-        super().teardown_method(method)
