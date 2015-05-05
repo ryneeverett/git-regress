@@ -66,7 +66,7 @@ __print_result() {
 
 __assert_command_fails() {
 		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-		find . -name '*.pyc' -delete
+                find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
 
 		"$@"
 
@@ -190,7 +190,7 @@ git_regress_bisect() {
 	git bisect start "$bad_commit" "$good_commit"
 
 	# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-	cmd="find . -name '*.pyc' -delete && $cmd"
+        cmd="find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \; && $cmd"
 
 	git bisect run eval "$cmd"
 

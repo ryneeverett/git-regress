@@ -191,6 +191,7 @@ class RegressTestFeatures(RegressTestBase):
 class TestFeaturesTracked(RegressTestFeatures, TestTracked):
     pass
 
+
 class TestFeaturesUntracked(RegressTestFeatures, TestUntracked):
     pass
 
