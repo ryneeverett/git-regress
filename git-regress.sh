@@ -27,6 +27,14 @@ __setup() {
 		esac
 	done
 
+        # Handle negative assertion.
+        if [ "${args[0]}" == "!" ]; then
+                good_exit_code=1
+                unset args[0]
+        else
+                good_exit_code=0
+        fi
+
 	# Stash if there are unstaged changes.
 	git diff-files --quiet
 	if [[ $? == 1 ]]; then
@@ -39,7 +47,7 @@ __setup() {
 }
 __teardown() {
 	$unstash
-	unset -v args commits unstash
+	unset -v args commits negate unstash
 	find . -name 'git-regress-tmp-*' -delete
 }
 
@@ -70,7 +78,7 @@ __assert_command_fails() {
 
 		"$@"
 
-		if [[ $? == 0 ]]; then
+		if [[ $? == "$good_exit_code" ]]; then
 			# Return a bad exit code if the command succeeds.
 			return 1
 		else

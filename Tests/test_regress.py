@@ -12,8 +12,8 @@ REPO_PATH = os.path.join(
 
 
 def setup_module():
-    global DEBUG
-    DEBUG = pytest.config.getoption('debug')
+    global WRITE
+    WRITE = pytest.config.getoption('write')
 
     global ENV
     ENV = scripttest.TestFileEnvironment(REPO_PATH)
@@ -40,7 +40,8 @@ class RegressTestBase(object):
         cls.expect_body = {
             'commit': 'Regression',
             'tag': 'bad_release',
-            'pointless': 'Trivial. Implement pointlessness after regression.'
+            'pointless': 'Trivial. Implement pointlessness after regression.',
+            'failure': ''
         }
         cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
 
@@ -55,7 +56,7 @@ class RegressTestBase(object):
 
     @staticmethod
     def execute(*args, **kwargs):
-        if DEBUG and kwargs.get('stdin', False):
+        if WRITE and kwargs.get('stdin', False):
             raise Exception('In debug mode, data cannot be sent to stdin.')
 
         if kwargs.pop('test', False):
@@ -67,6 +68,24 @@ class RegressTestBase(object):
                 args, stdout=stdout, stderr=stderr, cwd=ENV.cwd, **kwargs)
             p.wait()
             return p
+
+    @classmethod
+    def executeRegress(cls, regress_args, test_result, py_test=True, **kwargs):
+        if py_test:
+            regress_args += [
+                'python', cls.test_file, 'TestApp.test_' + test_result]
+        command = ['/bin/sh', cls.relPath('../git-regress.sh')] + regress_args
+
+        if WRITE in ['sh', 'all']:
+            command.insert(1, '-x')
+            cls.execute(
+                *command, stderr=None,
+                stdout=subprocess.DEVNULL if WRITE == 'sh' else None, **kwargs)
+        else:
+            return cls.execute(
+                *command, expect_stderr=True,
+                expect_error=bool(test_result != 'success'),
+                debug=bool(WRITE == 'std'), test=True, **kwargs)
 
     @staticmethod
     def relPath(path):
@@ -105,26 +124,26 @@ class RegressTestBase(object):
                 raise Exception('Test changed temp directory state:\n' +
                                 pprint.pformat(repo_state)) from error
 
-    def runRegress(self, regress_args, test_result, py_test=True, **kwargs):
-        expect_error = bool(test_result != 'success')
-
+    def runRegress(self, regress_args, test_result, **kwargs):
         # Run Regress
-        if py_test:
-            regress_args += [
-                'python', self.test_file, 'TestApp.test_' + test_result]
-        command = ['/bin/sh', self.relPath('../git-regress.sh')] + regress_args
+        result = self.executeRegress(regress_args, test_result, **kwargs)
 
-        if DEBUG in ['sh', 'all']:
-            command.insert(1, '-x')
-            self.execute(
-                *command, stderr=None,
-                stdout=subprocess.DEVNULL if DEBUG == 'sh' else None, **kwargs)
+        if test_result != 'success':
+            result_type = 'failure'
+        elif '--tag' in regress_args:
+            result_type = 'tag'
+        elif '--commits' in regress_args:
+            result_type = 'pointless'
         else:
-            result = self.execute(
-                *command, expect_stderr=True, expect_error=expect_error,
-                debug=bool(DEBUG == 'term'), test=True, **kwargs)
+            result_type = 'commit'
 
-        if DEBUG:
+        self.checkResult(result, test_result, result_type)
+
+        return result
+
+    @classmethod
+    def checkResult(cls, result, test_result, result_type='failure'):
+        if WRITE:
             raise Exception('In debug mode, assertions are not tested.')
 
         # Test Return Code
@@ -134,21 +153,12 @@ class RegressTestBase(object):
             assert result.returncode != 0
 
         # Test Stdout
-        if '--tag' in regress_args:
-            result_type = 'tag'
-        elif '--commits' in regress_args:
-            result_type = 'pointless'
-        else:
-            result_type = 'commit'
-
         expected_stdout = re.compile(
             '.*-+\n{header}\n-+\n.*{body}'.format(
-                header=self.expect_header[test_result],
-                body='' if expect_error else self.expect_body[result_type]),
+                header=cls.expect_header[test_result],
+                body=cls.expect_body[result_type]),
             re.DOTALL)
         assert expected_stdout.match(result.stdout)
-
-        return result
 
 
 class TestUntracked(RegressTestBase):
@@ -217,3 +227,10 @@ class TestRegressions(TestUntracked):
             'all_bad', py_test=False)
 
         open(nested_file, 'w').close()
+
+    def test_reverse_error_code(self):
+        """
+        issue #19
+        """
+        self.result = self.executeRegress(['!'], 'all_bad')
+        self.checkResult(self.result, 'all_good')
