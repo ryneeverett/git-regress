@@ -74,7 +74,8 @@ class RegressTestBase(object):
 
     def setup_method(self, method):
         shutil.copyfile(
-            self.relPath('./resources/modified.py'), self.test_file_path)
+            self.relPath('./resources/modified_test_file.py'),
+            self.test_file_path)
 
     def teardown_method(self, method):
         try:
