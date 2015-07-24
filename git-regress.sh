@@ -1,3 +1,5 @@
+#!/bin/bash
+
 __setup() {
 	trap __teardown EXIT
 
