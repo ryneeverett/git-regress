@@ -7,6 +7,8 @@ import subprocess
 import pytest
 import scripttest
 
+import utils
+
 REPO_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
@@ -18,6 +20,12 @@ def setup_module():
     global ENV
     ENV = scripttest.TestFileEnvironment(REPO_PATH)
 
+    global SHELL
+    SHELL = utils.Shell(ENV, WRITE)
+
+    global GIT
+    GIT = utils.Git(SHELL)
+
     ENV.run('../resources/setup.sh')
 
     global HEAD_SHA
@@ -25,7 +33,7 @@ def setup_module():
 
 
 @pytest.fixture(params=['success', 'all_good', 'all_bad'])
-def test_result(request):
+def testresult(request):
     return request.param
 
 
@@ -43,72 +51,26 @@ class RegressTestBase(object):
             'pointless': 'Trivial. Implement pointlessness after regression.',
             'failure': ''
         }
-        cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
-
-    @classmethod
-    def gitClean(cls):
-        cls.execute('git', 'reset', '--hard', 'master')
-
-    @classmethod
-    def gitStatus(cls):
-        return cls.execute(
-            'git', 'status', '--porcelain', test=True).stdout.rstrip('\n')
-
-    @staticmethod
-    def execute(*args, **kwargs):
-        if WRITE and kwargs.get('stdin', False):
-            raise Exception('In debug mode, data cannot be sent to stdin.')
-
-        if kwargs.pop('test', False):
-            return ENV.run(*args, **kwargs)
-        else:
-            stdout = kwargs.pop('stdout', subprocess.DEVNULL)
-            stderr = kwargs.pop('stderr', subprocess.DEVNULL)
-            p = subprocess.Popen(
-                args, stdout=stdout, stderr=stderr, cwd=ENV.cwd, **kwargs)
-            p.wait()
-            return p
-
-    @classmethod
-    def executeRegress(cls, regress_args, test_result, py_test=True, **kwargs):
-        if py_test:
-            regress_args += [
-                'python', cls.test_file, 'TestApp.test_' + test_result]
-        command = ['/bin/sh', cls.relPath('../git-regress.sh')] + regress_args
-
-        if WRITE in ['sh', 'all']:
-            command.insert(1, '-x')
-            cls.execute(
-                *command, stderr=None,
-                stdout=subprocess.DEVNULL if WRITE == 'sh' else None, **kwargs)
-        else:
-            return cls.execute(
-                *command, expect_stderr=True,
-                expect_error=bool(test_result != 'success'),
-                debug=bool(WRITE == 'std'), test=True, **kwargs)
-
-    @staticmethod
-    def relPath(path):
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
+        cls.testfile_path = os.path.join(ENV.cwd, cls.testfile)
 
     def setup_method(self, method):
         shutil.copyfile(
-            self.relPath('./resources/modified_test_file.py'),
-            self.test_file_path)
+            SHELL.relpath(
+                './resources/modified_test_file.py'), self.testfile_path)
 
     def teardown_method(self, method):
         try:
             assert hasattr(self, 'result')
         except AssertionError:  # (hopefully) test already failed
-            self.gitClean()
+            GIT.cleanreset()
         else:
             # Test Repo Working Directory State
             repo_state = {
                 'files_created': self.result.files_created,
                 'files_deleted': self.result.files_deleted,
-                'head_sha': self.execute(
+                'head_sha': SHELL.execute(
                     'git', 'rev-parse', 'HEAD', test=True).stdout.rstrip('\n'),
-                'dirty_cwd': self.gitStatus()}
+                'dirty_cwd': GIT.status()}
             try:
                 state_changes = (
                     list(repo_state['files_created'].keys()) +
@@ -120,34 +82,35 @@ class RegressTestBase(object):
 
                 assert not repo_state['dirty_cwd']
             except AssertionError as error:
-                self.gitClean()
+                GIT.cleanreset()
                 raise Exception('Test changed temp directory state:\n' +
                                 pprint.pformat(repo_state)) from error
 
-    def runRegress(self, regress_args, test_result, **kwargs):
+    def runRegress(self, regressargs, testresult, **kwargs):
         # Run Regress
-        result = self.executeRegress(regress_args, test_result, **kwargs)
+        result = SHELL.regress(
+            regressargs, self.testfile, testresult, **kwargs)
 
-        if test_result != 'success':
+        if testresult != 'success':
             result_type = 'failure'
-        elif '--tag' in regress_args:
+        elif '--tag' in regressargs:
             result_type = 'tag'
-        elif '--commits' in regress_args:
+        elif '--commits' in regressargs:
             result_type = 'pointless'
         else:
             result_type = 'commit'
 
-        self.checkResult(result, test_result, result_type)
+        self.checkResult(result, testresult, result_type)
 
         return result
 
     @classmethod
-    def checkResult(cls, result, test_result, result_type='failure'):
+    def checkResult(cls, result, testresult, result_type='failure'):
         if WRITE:
             raise Exception('In debug mode, assertions are not tested.')
 
         # Test Return Code
-        if test_result == 'success':
+        if testresult == 'success':
             assert result.returncode == 0
         else:
             assert result.returncode != 0
@@ -155,48 +118,48 @@ class RegressTestBase(object):
         # Test Stdout
         expected_stdout = re.compile(
             '.*-+\n{header}\n-+\n.*{body}'.format(
-                header=cls.expect_header[test_result],
+                header=cls.expect_header[testresult],
                 body=cls.expect_body[result_type]),
             re.DOTALL)
         assert expected_stdout.match(result.stdout)
 
 
 class TestUntracked(RegressTestBase):
-    test_file = 'untracked_test.py'
+    testfile = 'untracked_test.py'
 
     def teardown_method(self, method):
-        os.remove(self.test_file_path)
+        os.remove(self.testfile_path)
         super().teardown_method(method)
 
 
 class TestTracked(RegressTestBase):
-    test_file = 'test.py'
+    testfile = 'test.py'
 
     def teardown_method(self, method):
-        assert self.test_file in self.gitStatus()
-        self.execute('git', 'reset', 'HEAD', self.test_file_path)
-        self.execute('git', 'checkout', self.test_file_path)
+        assert self.testfile in GIT.status()
+        SHELL.execute('git', 'reset', 'HEAD', self.testfile_path)
+        SHELL.execute('git', 'checkout', self.testfile_path)
         super().teardown_method(method)
 
 
-@pytest.mark.usefixtures('test_result')
+@pytest.mark.usefixtures('testresult')
 class RegressTestFeatures(RegressTestBase):
-    def test_linear(self, test_result):
-        self.result = self.runRegress([], test_result)
+    def test_linear(self, testresult):
+        self.result = self.runRegress([], testresult)
 
-    def test_bisect(self, test_result):
-        self.result = self.runRegress(['--bisect'], test_result)
+    def test_bisect(self, testresult):
+        self.result = self.runRegress(['--bisect'], testresult)
 
-    def test_tag(self, test_result):
-        self.result = self.runRegress(['--tag'], test_result)
+    def test_tag(self, testresult):
+        self.result = self.runRegress(['--tag'], testresult)
 
-    def test_commits(self, test_result):
-        with self.execute(
+    def test_commits(self, testresult):
+        with SHELL.execute(
                 'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
             stdin = commits.stdout.read()
         self.result = self.runRegress(
-            ['--commits', '-'], test_result, stdin=stdin)
+            ['--commits', '-'], testresult, stdin=stdin)
 
 
 class TestFeaturesTracked(RegressTestFeatures, TestTracked):
@@ -216,7 +179,7 @@ class TestRegressions(TestUntracked):
         does not contain the text we just added to it. If regress is working
         properly it should contain that text because it was copied to a temp
         file. Therefore the script will return 1 through all commits, which is
-        why the test_result is 'all_bad'.
+        why the testresult is 'all_bad'.
         """
         nested_file = os.path.join(REPO_PATH, 'subdir/nested.txt')
         with open(nested_file, 'a') as nested:
@@ -224,7 +187,7 @@ class TestRegressions(TestUntracked):
 
         self.result = self.runRegress(
             ['../resources/modifying_nested_files.sh', 'subdir/nested.txt'],
-            'all_bad', py_test=False)
+            'all_bad', pytest=False)
 
         open(nested_file, 'w').close()
 
@@ -232,5 +195,5 @@ class TestRegressions(TestUntracked):
         """
         issue #19
         """
-        self.result = self.executeRegress(['!'], 'all_bad')
+        self.result = SHELL.regress(['!'], self.testfile, 'all_bad')
         self.checkResult(self.result, 'all_good')
