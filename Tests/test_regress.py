@@ -7,6 +7,8 @@ import subprocess
 import pytest
 import scripttest
 
+import utils
+
 REPO_PATH = os.path.join(
     os.path.dirname(os.path.realpath(__file__)), 'example-repo')
 
@@ -17,6 +19,9 @@ def setup_module():
 
     global ENV
     ENV = scripttest.TestFileEnvironment(REPO_PATH)
+
+    global SHELL
+    SHELL = utils.Shell(ENV, WRITE)
 
     ENV.run('../resources/setup.sh')
 
@@ -45,70 +50,24 @@ class RegressTestBase(object):
         }
         cls.test_file_path = os.path.join(ENV.cwd, cls.test_file)
 
-    @classmethod
-    def gitClean(cls):
-        cls.execute('git', 'reset', '--hard', 'master')
-
-    @classmethod
-    def gitStatus(cls):
-        return cls.execute(
-            'git', 'status', '--porcelain', test=True).stdout.rstrip('\n')
-
-    @staticmethod
-    def execute(*args, **kwargs):
-        if WRITE and kwargs.get('stdin', False):
-            raise Exception('In debug mode, data cannot be sent to stdin.')
-
-        if kwargs.pop('test', False):
-            return ENV.run(*args, **kwargs)
-        else:
-            stdout = kwargs.pop('stdout', subprocess.DEVNULL)
-            stderr = kwargs.pop('stderr', subprocess.DEVNULL)
-            p = subprocess.Popen(
-                args, stdout=stdout, stderr=stderr, cwd=ENV.cwd, **kwargs)
-            p.wait()
-            return p
-
-    @classmethod
-    def executeRegress(cls, regress_args, test_result, py_test=True, **kwargs):
-        if py_test:
-            regress_args += [
-                'python', cls.test_file, 'TestApp.test_' + test_result]
-        command = ['/bin/sh', cls.relPath('../git-regress.sh')] + regress_args
-
-        if WRITE in ['sh', 'all']:
-            command.insert(1, '-x')
-            cls.execute(
-                *command, stderr=None,
-                stdout=subprocess.DEVNULL if WRITE == 'sh' else None, **kwargs)
-        else:
-            return cls.execute(
-                *command, expect_stderr=True,
-                expect_error=bool(test_result != 'success'),
-                debug=bool(WRITE == 'std'), test=True, **kwargs)
-
-    @staticmethod
-    def relPath(path):
-        return os.path.join(os.path.dirname(os.path.realpath(__file__)), path)
-
     def setup_method(self, method):
         shutil.copyfile(
-            self.relPath('./resources/modified_test_file.py'),
+            SHELL.relpath('./resources/modified_test_file.py'),
             self.test_file_path)
 
     def teardown_method(self, method):
         try:
             assert hasattr(self, 'result')
         except AssertionError:  # (hopefully) test already failed
-            self.gitClean()
+            SHELL.git.cleanreset()
         else:
             # Test Repo Working Directory State
             repo_state = {
                 'files_created': self.result.files_created,
                 'files_deleted': self.result.files_deleted,
-                'head_sha': self.execute(
+                'head_sha': SHELL.execute(
                     'git', 'rev-parse', 'HEAD', test=True).stdout.rstrip('\n'),
-                'dirty_cwd': self.gitStatus()}
+                'dirty_cwd': SHELL.git.status()}
             try:
                 state_changes = (
                     list(repo_state['files_created'].keys()) +
@@ -120,13 +79,14 @@ class RegressTestBase(object):
 
                 assert not repo_state['dirty_cwd']
             except AssertionError as error:
-                self.gitClean()
+                SHELL.git.cleanreset()
                 raise Exception('Test changed temp directory state:\n' +
                                 pprint.pformat(repo_state)) from error
 
     def runRegress(self, regress_args, test_result, **kwargs):
         # Run Regress
-        result = self.executeRegress(regress_args, test_result, **kwargs)
+        result = SHELL.regress(
+            regress_args, self.test_file, test_result, **kwargs)
 
         if test_result != 'success':
             result_type = 'failure'
@@ -173,9 +133,9 @@ class TestTracked(RegressTestBase):
     test_file = 'test.py'
 
     def teardown_method(self, method):
-        assert self.test_file in self.gitStatus()
-        self.execute('git', 'reset', 'HEAD', self.test_file_path)
-        self.execute('git', 'checkout', self.test_file_path)
+        assert self.test_file in SHELL.git.status()
+        SHELL.execute('git', 'reset', 'HEAD', self.test_file_path)
+        SHELL.execute('git', 'checkout', self.test_file_path)
         super().teardown_method(method)
 
 
@@ -191,7 +151,7 @@ class RegressTestFeatures(RegressTestBase):
         self.result = self.runRegress(['--tag'], test_result)
 
     def test_commits(self, test_result):
-        with self.execute(
+        with SHELL.execute(
                 'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
                 stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
             stdin = commits.stdout.read()
@@ -232,5 +192,5 @@ class TestRegressions(TestUntracked):
         """
         issue #19
         """
-        self.result = self.executeRegress(['!'], 'all_bad')
+        self.result = SHELL.regress(['!'], self.test_file, 'all_bad')
         self.checkResult(self.result, 'all_good')
