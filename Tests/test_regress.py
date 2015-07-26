@@ -2,6 +2,7 @@ import os
 import re
 import pprint
 import shutil
+import filecmp
 import subprocess
 
 import pytest
@@ -23,7 +24,14 @@ def setup_module():
     global SHELL
     SHELL = utils.Shell(ENV, WRITE)
 
-    ENV.run('../resources/setup.sh')
+    srcfile = 'resources/setup.sh'
+    cachefile = '__regresscache__/setup.sh'
+
+    if filecmp.cmp(srcfile, cachefile):
+        GIT.cleanreset()
+    else:  # Only rebuild if the setup script has been modified.
+        ENV.run('../' + srcfile)
+        shutil.copyfile(SHELL.relpath(srcfile), SHELL.relpath(cachefile))
 
     global HEAD_SHA
     HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
