@@ -2,6 +2,7 @@ import os
 import re
 import pprint
 import shutil
+import filecmp
 import subprocess
 
 import pytest
@@ -14,16 +15,26 @@ REPO_PATH = os.path.join(
 
 
 def setup_module():
+    src_setup = 'resources/setup.sh'
+    cache_setup = '.regresscache/setup.sh'
+    use_cache = (os.path.exists(cache_setup) and
+                 os.path.exists(os.path.join(REPO_PATH, '.git')) and
+                 filecmp.cmp(src_setup, cache_setup))
+
     global WRITE
     WRITE = pytest.config.getoption('write')
 
     global ENV
-    ENV = scripttest.TestFileEnvironment(REPO_PATH)
+    ENV = scripttest.TestFileEnvironment(REPO_PATH, start_clear=not use_cache)
 
     global SHELL
     SHELL = utils.Shell(ENV, WRITE)
 
-    ENV.run('../resources/setup.sh')
+    if use_cache:
+        SHELL.git.cleanreset()
+    else:  # Only rebuild if the setup script has been modified.
+        ENV.run('../' + src_setup)
+        shutil.copyfile(SHELL.relpath(src_setup), SHELL.relpath(cache_setup))
 
     global HEAD_SHA
     HEAD_SHA = ENV.run('git', 'rev-parse', 'HEAD').stdout.rstrip('\n')
