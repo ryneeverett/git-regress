@@ -1,2 +1,2 @@
 pytest
-git+https://github.com/ryneeverett/scripttest.git@debug
+-e git+https://github.com/ryneeverett/scripttest.git@debug#egg=scripttest

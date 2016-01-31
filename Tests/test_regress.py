@@ -33,7 +33,10 @@ def setup_module():
     if use_cache:
         SHELL.git.cleanreset()
     else:  # Only rebuild if the setup script has been modified.
-        ENV.run('../' + src_setup)
+        ENV.run('sh ../' + src_setup)
+
+        if not os.path.exists('.regresscache'):
+            os.mkdir('.regresscache')
         shutil.copyfile(SHELL.relpath(src_setup), SHELL.relpath(cache_setup))
 
     global HEAD_SHA
