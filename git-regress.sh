@@ -18,7 +18,8 @@ __setup() {
 			*)
                                 if [ -f "$1" ]; then
                                         # Copy files passed as arguments.
-                                        local tmp_path="$(dirname $1)/git-regress-tmp-$(basename $1)"
+                                        local tmp_path
+                                        tmp_path="$(dirname "$1")/git-regress-tmp-$(basename "$1")"
                                         cp "$1" "$tmp_path"
                                         args+=("$tmp_path")
                                 else
@@ -139,7 +140,8 @@ git_regress_tag() {
 
 	__assert_command_fails "$@" || __exhausted_no_fail
 
-	local tagpipe=$(mktemp --dry-run)
+        local tagpipe
+	tagpipe=$(mktemp --dry-run)
 	mkfifo "$tagpipe"
 	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > "$tagpipe" &
 	while read -r tagged_commit; do
@@ -218,7 +220,7 @@ git_regress_bisect() {
 }
 
 usage() {
-	read -d '' help <<- EOF
+	read -r -d '' help <<- EOF
 	Searches through commits, looking for the most recent in
 	which <cmd> suceeds (exit code 0).
 
