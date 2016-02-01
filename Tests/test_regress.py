@@ -59,6 +59,7 @@ class RegressTestBase(object):
         cls.expect_body = {
             'commit': 'Regression',
             'tag': 'bad_release',
+            'old': 'Old regression',
             'pointless': 'Trivial. Implement pointlessness after regression.',
             'failure': ''
         }
@@ -108,6 +109,8 @@ class RegressTestBase(object):
             result_type = 'tag'
         elif '--commits' in regress_args:
             result_type = 'pointless'
+        elif '--bisect' in regress_args and '--bad' not in regress_args:
+            result_type = 'old'
         else:
             result_type = 'commit'
 
@@ -155,22 +158,37 @@ class TestTracked(RegressTestBase):
 
 @pytest.mark.usefixtures('test_result')
 class RegressTestFeatures(RegressTestBase):
+    @staticmethod
+    def grepCommits(query):
+        """ Return a newline-delimited string of commit sha's. """
+        with SHELL.execute(
+                'git', 'rev-list', 'HEAD', '--grep', query,
+                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
+            return commits.stdout.read()
+
+    @classmethod
+    def grepCommit(cls, query):
+        return cls.grepCommits(query).strip().decode('utf-8')
+
     def test_linear(self, test_result):
         self.result = self.runRegress([], test_result)
+
+    def test_linear_commits(self, test_result):
+        self.result = self.runRegress(
+            ['--commits', '-'], test_result,
+            stdin=self.grepCommits('pointlessness'))
 
     def test_bisect(self, test_result):
         self.result = self.runRegress(['--bisect'], test_result)
 
+    def test_bisect_good_bad(self, test_result):
+        good = self.grepCommit('Old fix')
+        bad = self.grepCommit('after regression')
+        self.result = self.runRegress(
+            ['--bisect', '--good', good, '--bad', bad], test_result)
+
     def test_tag(self, test_result):
         self.result = self.runRegress(['--tag'], test_result)
-
-    def test_commits(self, test_result):
-        with SHELL.execute(
-                'git', 'rev-list', 'HEAD', '--grep', 'pointlessness',
-                stdout=subprocess.PIPE, stderr=subprocess.PIPE) as commits:
-            stdin = commits.stdout.read()
-        self.result = self.runRegress(
-            ['--commits', '-'], test_result, stdin=stdin)
 
 
 class TestFeaturesTracked(RegressTestFeatures, TestTracked):

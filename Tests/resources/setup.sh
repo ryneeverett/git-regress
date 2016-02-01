@@ -39,6 +39,22 @@ __trivial_commit verbose=true
 
 __trivial_commit
 
+cp ../resources/bad_application.py application.py
+git add application.py
+git commit -m 'Old regression.'
+
+__trivial_commit
+
+__trivial_commit verbose=true
+
+__trivial_commit
+
+cp ../resources/good_application.py application.py
+git add application.py
+git commit -m 'Old fix.'
+
+__trivial_commit
+
 __git_tag 'good_release'
 
 __trivial_commit

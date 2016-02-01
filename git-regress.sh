@@ -74,7 +74,7 @@ __print_result() {
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
 	echo "REGRESSION IDENTIFIED:"
 	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	git log -1 -p --stat --decorate
+	git --no-pager log -1 -p --stat --decorate
 }
 
 __assert_command_fails() {

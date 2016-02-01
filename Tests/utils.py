@@ -52,6 +52,7 @@ class Git(object):
     def cleanreset(self):
         self.shell.execute('git', 'clean', '-df')
         self.shell.execute('git', 'reset', 'master')
+        self.shell.execute('git', 'checkout', '.')
 
     def status(self):
         return self.shell.execute(
