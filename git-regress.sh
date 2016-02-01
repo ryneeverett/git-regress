@@ -4,6 +4,7 @@ __setup() {
 	trap __teardown EXIT
 
 	args=()
+        tmp_files=()
         while [ "${1+defined}" ]; do
 		case $1 in
 			"-c" | "--commits")
@@ -22,6 +23,7 @@ __setup() {
                                         tmp_path="$(dirname "$1")/git-regress-tmp-$(basename "$1")"
                                         cp "$1" "$tmp_path"
                                         args+=("$tmp_path")
+                                        tmp_files+=("$tmp_path")
                                 else
                                         args+=("$1")
                                 fi
@@ -50,8 +52,8 @@ __setup() {
 }
 __teardown() {
 	$unstash
-	unset -v args commits negate unstash
-	find . -name 'git-regress-tmp-*' -delete
+        rm "${tmp_files[@]}"
+	unset -v args commits negate unstash tmp_files
 }
 
 __exhausted() {
