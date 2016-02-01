@@ -164,9 +164,8 @@ git_regress_tag() {
 }
 
 git_regress_bisect() {
-	__assert_command_fails "$@" || __exhausted_no_fail
-
 	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
+        local cmd=()
 	while :; do
 		case $1 in
 			good | "--good")
@@ -184,10 +183,12 @@ git_regress_bisect() {
 					break
 				fi
 
-				local cmd="$cmd $1"
+                                cmd+=("$1")
 				shift
 		esac
 	done
+
+	__assert_command_fails "${cmd[@]}" || __exhausted_no_fail
 
 	# ASSIGN DEFAULTS
 	if [ -z "$good_commit" ]; then
@@ -203,17 +204,15 @@ git_regress_bisect() {
 	echo "Bisecting bad commit $bad_commit and good commit $good_commit ."
 	git bisect start "$bad_commit" "$good_commit"
 
-	# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-        cmd="find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \; && $cmd"
-
-	git bisect run eval "$cmd"
+        # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+	git bisect run sh -c "find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \; && ${cmd[*]}"
 
 	# Make sure we actually have the culprit checked out.
 	git checkout "$(git bisect view --format="%H")"
 
 	# Make sure previous commit actually succeeds.
 	git checkout HEAD^
-	eval "$cmd" || __exhausted_no_success
+	"${cmd[@]}" || __exhausted_no_success
 	git checkout 'HEAD@{1}'
 
 	# REPORT & TEARDOWN
