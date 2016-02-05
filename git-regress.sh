@@ -9,9 +9,9 @@ __setup() {
 		case $1 in
 			"-c" | "--commits")
                                 if [ "$2" == '-' ]; then
-                                        commits=$(</dev/stdin)
+                                        revisions=$(</dev/stdin)
                                 else
-                                        commits=$2
+                                        revisions=$2
                                 fi
 				shift 2
 				continue
@@ -53,7 +53,7 @@ __setup() {
 __teardown() {
 	$unstash
         rm "${tmp_files[@]}"
-	unset -v args commits negate unstash tmp_files
+	unset -v args negate revisions tmp_files unstash
 }
 
 __exhausted() {
@@ -109,25 +109,26 @@ git_regress() {
 	git checkout master
 }
 
-git_regress_commits() {
-        local commit prevline
+git_regress_revs () {
+        # Linear search through revisions (commits or tags).
+        local rev prevline
 
-        # Check out first commit
-        commit=$(echo "$commits" | awk '{print $1; exit}')
-        git checkout "$commit"
+        # Check out first rev.
+        rev=$(echo "$revisions" | awk '{print $1; exit}')
+        git checkout "$rev"
 
 	__assert_command_fails "$@" || __exhausted_no_fail
 
 
-        while read -r commit;  do
-		# Step back one commit at a time...
-		git checkout "$commit"
+        while read -r rev;  do
+		# Step back one rev at a time...
+		git checkout "$rev"
 
 		# ...executing any arguments passed until an exit code 0 is returned.
 		__assert_command_fails "$@" || break
 
-                prevline=$commit
-        done <<< "$commits"
+                prevline=$rev
+        done <<< "$revisions"
 
 	"$@" || __exhausted_no_success
 
@@ -265,9 +266,8 @@ case ${args:0} in
 		git_regress_tag "${args[@]:1}"
 		;;
 	*)
-                # if [[ " ${args[@]} " == *" --commits "* ]]; then
-                if [ -n "$commits" ]; then
-                        git_regress_commits "${args[@]}"
+                if [ -n "$revisions" ]; then
+                        git_regress_revs "${args[@]}"
                 else
                         git_regress "${args[@]}"
                 fi
