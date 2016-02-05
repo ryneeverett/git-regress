@@ -210,6 +210,9 @@ git_regress_bisect() {
 	# Make sure we actually have the culprit checked out.
 	git checkout "$(git bisect view --format="%H")"
 
+        # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+        find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
+
 	# Make sure previous commit actually succeeds.
 	git checkout HEAD^
 	"${cmd[@]}" || __exhausted_no_success
