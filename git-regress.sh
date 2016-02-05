@@ -78,18 +78,18 @@ __print_result() {
 }
 
 __assert_command_fails() {
-		# HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-                find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
+        # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+        find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
 
-		"$@"
+        "$@"
 
-		if [[ $? == "$good_exit_code" ]]; then
-			# Return a bad exit code if the command succeeds.
-			return 1
-		else
-			# Return a good exit code if the command fails.
-			return 0
-		fi
+        if [[ $? == "$good_exit_code" ]]; then
+                # Return a bad exit code if the command succeeds.
+                return 1
+        else
+                # Return a good exit code if the command fails.
+                return 0
+        fi
 }
 
 git_regress() {
@@ -137,7 +137,7 @@ git_regress_commits() {
 }
 
 git_regress_tag() {
-# Identify the tag in which the regression was introduced.
+        # Identify the tag in which the regression was introduced.
 	local prevline
 
 	__assert_command_fails "$@" || __exhausted_no_fail
