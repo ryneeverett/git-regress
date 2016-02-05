@@ -16,6 +16,10 @@ __setup() {
 				shift 2
 				continue
 				;;
+                        tag | "-t" | "--tag")
+                                revisions=$(git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac)
+				shift
+				;;
 			*)
                                 if [ -f "$1" ]; then
                                         # Copy files passed as arguments.
@@ -137,33 +141,6 @@ git_regress_revs () {
 	git checkout master
 }
 
-git_regress_tag() {
-        # Identify the tag in which the regression was introduced.
-	local prevline
-
-	__assert_command_fails "$@" || __exhausted_no_fail
-
-        local tagpipe
-	tagpipe=$(mktemp --dry-run)
-	mkfifo "$tagpipe"
-	git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac > "$tagpipe" &
-	while read -r tagged_commit; do
-		# Step back one tag  at a time...
-		git checkout "$tagged_commit"
-
-		# ...executing any arguments passed until an exit code 0 is returned.
-		__assert_command_fails "$@" || break
-
-		prevline=$tagged_commit
-	done < "$tagpipe"
-
-	"$@" || __exhausted_no_success
-
-	git checkout "$prevline"
-	__print_result
-	git checkout master
-}
-
 git_regress_bisect() {
 	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
         local cmd=()
@@ -261,9 +238,6 @@ __setup "$@"
 case ${args:0} in
 	bisect | "-b" | "--bisect")
 		git_regress_bisect "${args[@]:1}"
-		;;
-	tag | "-t" | "--tag")
-		git_regress_tag "${args[@]:1}"
 		;;
 	*)
                 if [ -n "$revisions" ]; then
