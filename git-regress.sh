@@ -17,7 +17,7 @@ __setup() {
                 continue
                 ;;
             tag | "-t" | "--tag")
-                revisions=$(git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac)
+                revisions=$(git tag | xargs -I@ git log --format=format:"@%n" --date-order -1 @)
                 shift
                 ;;
             *)

@@ -15,7 +15,6 @@ __trivial_commit() {
 
 __git_tag() {
     git tag -a "$1" -m "$1"
-    sleep 1  # HACK to ensure correct tag order
 }
 
 git init
