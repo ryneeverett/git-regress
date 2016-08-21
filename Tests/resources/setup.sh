@@ -1,21 +1,21 @@
 #!/usr/bin/sh
 __trivial_commit() {
-        local append verbose
-        local "${@}"
+    local append verbose
+    local "${@}"
 
-        local message='Trivial'
-        if [ -n "$verbose" ]; then
-                message+=". Implement pointlessness$append."
-        fi
+    local message='Trivial'
+    if [ -n "$verbose" ]; then
+        message+=". Implement pointlessness$append."
+    fi
 
-        echo 'trivial' >> 'trivial.txt'
-        git add 'trivial.txt'
-        git commit -m "$message"
+    echo 'trivial' >> 'trivial.txt'
+    git add 'trivial.txt'
+    git commit -m "$message"
 }
 
 __git_tag() {
-        git tag -a "$1" -m "$1"
-        sleep 1  # HACK to ensure correct tag order
+    git tag -a "$1" -m "$1"
+    sleep 1  # HACK to ensure correct tag order
 }
 
 git init

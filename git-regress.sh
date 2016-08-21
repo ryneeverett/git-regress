@@ -1,234 +1,235 @@
 #!/bin/bash
 
 __setup() {
-	trap __teardown EXIT
+    trap __teardown EXIT
 
-	args=()
-        tmp_files=()
-        while [ "${1+defined}" ]; do
-		case $1 in
-			"-c" | "--commits")
-                                if [ "$2" == '-' ]; then
-                                        revisions=$(</dev/stdin)
-                                else
-                                        revisions=$2
-                                fi
-				shift 2
-				continue
-				;;
-                        tag | "-t" | "--tag")
-                                revisions=$(git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac)
-				shift
-				;;
-			*)
-                                if [ -f "$1" ]; then
-                                        # Copy files passed as arguments.
-                                        local tmp_path
-                                        tmp_path="$(dirname "$1")/git-regress-tmp-$(basename "$1")"
-                                        cp "$1" "$tmp_path"
-                                        args+=("$tmp_path")
-                                        tmp_files+=("$tmp_path")
-                                else
-                                        args+=("$1")
-                                fi
-				shift
-                                ;;
-		esac
-	done
+    args=()
+    tmp_files=()
+    while [ "${1+defined}" ]; do
+        case $1 in
+            "-c" | "--commits")
+                if [ "$2" == '-' ]; then
+                    revisions=$(</dev/stdin)
+                else
+                    revisions=$2
+                fi
+                shift 2
+                continue
+                ;;
+            tag | "-t" | "--tag")
+                revisions=$(git tag | xargs -I@ git log --format=format:"%ai @%n" -1 @ | sort | awk '{print $4}' | tac)
+                shift
+                ;;
+            *)
+                if [ -f "$1" ]; then
+                    # Copy files passed as arguments.
+                    local tmp_path
+                    tmp_path="$(dirname "$1")/git-regress-tmp-$(basename "$1")"
+                    cp "$1" "$tmp_path"
+                    args+=("$tmp_path")
+                    tmp_files+=("$tmp_path")
+                else
+                    args+=("$1")
+                fi
+                shift
+                ;;
+        esac
+    done
 
-        # Handle negative assertion.
-        if [ "${args[0]}" == "!" ]; then
-                good_exit_code=1
-                unset args[0]
-        else
-                good_exit_code=0
-        fi
+    # Handle negative assertion.
+    if [ "${args[0]}" == "!" ]; then
+        good_exit_code=1
+        unset args[0]
+    else
+        good_exit_code=0
+    fi
 
-	# Stash if there are unstaged changes.
-	git diff-files --quiet
-	if [[ $? == 1 ]]; then
-		git stash
-		unstash="git stash apply"
-	else
-		unstash=""
-	fi
+    # Stash if there are unstaged changes.
+    git diff-files --quiet
+    if [[ $? == 1 ]]; then
+        git stash
+        unstash="git stash apply"
+    else
+        unstash=""
+    fi
 
 }
 __teardown() {
-	$unstash
-        rm "${tmp_files[@]}"
-	unset -v args negate revisions tmp_files unstash
+    $unstash
+    rm "${tmp_files[@]}"
+    unset -v args negate revisions tmp_files unstash
 }
 
 __exhausted() {
-	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	echo "REPO EXHAUSTED: $1"
-	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	git checkout master --force
-	exit 1
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "REPO EXHAUSTED: $1"
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    git checkout master --force
+    exit 1
 }
 __exhausted_no_success() {
-	__exhausted "Command Never Succeeded"
+    __exhausted "Command Never Succeeded"
 }
 __exhausted_no_fail() {
-	__exhausted "Command Never Failed"
+    __exhausted "Command Never Failed"
 }
 
 __print_result() {
-	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	echo "REGRESSION IDENTIFIED:"
-	printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
-	git --no-pager log -1 -p --stat --decorate
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    echo "REGRESSION IDENTIFIED:"
+    printf '%*s\n' "${COLUMNS:-$(tput cols)}" '' | tr ' ' -
+    git --no-pager log -1 -p --stat --decorate
 }
 
 __assert_command_fails() {
-        # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-        find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
+    # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+    find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
 
-        "$@"
+    "$@"
 
-        if [[ $? == "$good_exit_code" ]]; then
-                # Return a bad exit code if the command succeeds.
-                return 1
-        else
-                # Return a good exit code if the command fails.
-                return 0
-        fi
+    if [[ $? == "$good_exit_code" ]]; then
+        # Return a bad exit code if the command succeeds.
+        return 1
+    else
+        # Return a good exit code if the command fails.
+        return 0
+    fi
 }
 
 git_regress() {
-	__assert_command_fails "$@" || __exhausted_no_fail
+    __assert_command_fails "$@" || __exhausted_no_fail
 
-	while true
-	do
-		# Step back one commit at a time...
-		git checkout HEAD^ || __exhausted_no_success
+    while true
+    do
+        # Step back one commit at a time...
+        git checkout HEAD^ || __exhausted_no_success
 
-		# ...executing any arguments passed until an exit code 0 is returned.
-		__assert_command_fails "$@" || break
-	done
+        # ...executing any arguments passed until an exit code 0 is returned.
+        __assert_command_fails "$@" || break
+    done
 
-	git checkout 'HEAD@{1}'
-	__print_result
-	git checkout master
+    git checkout 'HEAD@{1}'
+    __print_result
+    git checkout master
 }
 
 git_regress_revs () {
-        # Linear search through revisions (commits or tags).
-        local rev prevline
+    # Linear search through revisions (commits or tags).
+    local rev prevline
 
-        # Check out first rev.
-        rev=$(echo "$revisions" | awk '{print $1; exit}')
+    # Check out first rev.
+    rev=$(echo "$revisions" | awk '{print $1; exit}')
+    git checkout "$rev"
+
+    __assert_command_fails "$@" || __exhausted_no_fail
+
+
+    while read -r rev;  do
+        # Step back one rev at a time...
         git checkout "$rev"
 
-	__assert_command_fails "$@" || __exhausted_no_fail
+        # ...executing any arguments passed until an exit code 0 is returned.
+        __assert_command_fails "$@" || break
 
+        prevline=$rev
+    done <<< "$revisions"
 
-        while read -r rev;  do
-		# Step back one rev at a time...
-		git checkout "$rev"
+    "$@" || __exhausted_no_success
 
-		# ...executing any arguments passed until an exit code 0 is returned.
-		__assert_command_fails "$@" || break
-
-                prevline=$rev
-        done <<< "$revisions"
-
-	"$@" || __exhausted_no_success
-
-	git checkout "$prevline"
-	__print_result
-	git checkout master
+    git checkout "$prevline"
+    __print_result
+    git checkout master
 }
 
 git_regress_bisect() {
-	# PARSE ARGUMENTS (Note: Any argument order is acceptable.)
-        local cmd=()
-	while :; do
-		case $1 in
-			good | "--good")
-				local good_commit=$2
-				shift 2
-				continue
-				;;
-			bad | "--bad")
-				local bad_commit=$2
-				shift 2
-				continue
-				;;
-			*)
-				if test $# -le 0; then
-					break
-				fi
+    # PARSE ARGUMENTS (Note: Any argument order is acceptable.)
+    local cmd=()
+    while :; do
+        case $1 in
+            good | "--good")
+                local good_commit=$2
+                shift 2
+                continue
+                ;;
+            bad | "--bad")
+                local bad_commit=$2
+                shift 2
+                continue
+                ;;
+            *)
+                if test $# -le 0; then
+                    break
+                fi
 
-                                cmd+=("$1")
-				shift
-		esac
-	done
+                cmd+=("$1")
+                shift
+                ;;
+        esac
+    done
 
-	__assert_command_fails "${cmd[@]}" || __exhausted_no_fail
+    __assert_command_fails "${cmd[@]}" || __exhausted_no_fail
 
-	# ASSIGN DEFAULTS
-	if [ -z "$good_commit" ]; then
-		# default: first commit
-		good_commit=$(git log --pretty=oneline | tail -1 | awk  '{print $1;}')
-	fi
-	if [ -z "$bad_commit" ]; then
-		# default: current commit
-		bad_commit=$(git log --pretty=oneline -1 | awk '{print $1;}')
-	fi
+    # ASSIGN DEFAULTS
+    if [ -z "$good_commit" ]; then
+        # default: first commit
+        good_commit=$(git log --pretty=oneline | tail -1 | awk  '{print $1;}')
+    fi
+    if [ -z "$bad_commit" ]; then
+        # default: current commit
+        bad_commit=$(git log --pretty=oneline -1 | awk '{print $1;}')
+    fi
 
-	# BISECT
-	echo "Bisecting bad commit $bad_commit and good commit $good_commit ."
-	git bisect start "$bad_commit" "$good_commit"
-
-        # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-	git bisect run sh -c "find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \; && ${cmd[*]}"
-
-	# Make sure we actually have the culprit checked out.
-	git checkout "$(git bisect view --format="%H")"
+    # BISECT
+    echo "Bisecting bad commit $bad_commit and good commit $good_commit ."
+    git bisect start "$bad_commit" "$good_commit"
 
         # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
-        find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
+    git bisect run sh -c "find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \; && ${cmd[*]}"
 
-	# Make sure previous commit actually succeeds.
-	git checkout HEAD^
-	"${cmd[@]}" || __exhausted_no_success
-	git checkout 'HEAD@{1}'
+    # Make sure we actually have the culprit checked out.
+    git checkout "$(git bisect view --format="%H")"
 
-	# REPORT & TEARDOWN
-	__print_result
-	git bisect reset
+    # HACK Python cache invalidation uses timestamps and we're moving too fast for that.
+    find . -name '.git' -prune -o -name '*.pyc' -exec rm {} \;
+
+    # Make sure previous commit actually succeeds.
+    git checkout HEAD^
+    "${cmd[@]}" || __exhausted_no_success
+    git checkout 'HEAD@{1}'
+
+    # REPORT & TEARDOWN
+    __print_result
+    git bisect reset
 }
 
 usage() {
-	read -r -d '' help <<- EOF
-	Searches through commits, looking for the most recent in
-	which <cmd> suceeds (exit code 0).
+    read -r -d '' help <<- EOF
+Searches through commits, looking for the most recent in
+which <cmd> suceeds (exit code 0).
 
-	git regress <cmd> [--commits <sha's>]
-	    (default) Linear search through commits.
-	git regress tag <cmd>
-	    Linear search only through tagged commits.
-	git regress bisect [--good <sha>] [--bad <sha>] <cmd>
-	    Binary search through commits between bad and good.
+git regress <cmd> [--commits <sha's>]
+    (default) Linear search through commits.
+git regress tag <cmd>
+    Linear search only through tagged commits.
+git regress bisect [--good <sha>] [--bad <sha>] <cmd>
+    Binary search through commits between bad and good.
 
-	git regress help
-	    Print this help message.
-	EOF
+git regress help
+    Print this help message.
+EOF
 
-	echo "$help"
-	exit 0
+    echo "$help"
+    exit 0
 }
 
 # Print Help
 if [ $# == 0 ]; then
-	usage
+    usage
 fi
 case $1 in
-	help | "-h" | "--help")
-		usage
-		;;
+    help | "-h" | "--help")
+        usage
+        ;;
 esac
 
 # Initialize $args and stash modified files.
@@ -236,14 +237,14 @@ __setup "$@"
 
 # Execute Command
 case ${args:0} in
-	bisect | "-b" | "--bisect")
-		git_regress_bisect "${args[@]:1}"
-		;;
-	*)
-                if [ -n "$revisions" ]; then
-                        git_regress_revs "${args[@]}"
-                else
-                        git_regress "${args[@]}"
-                fi
-		;;
+    bisect | "-b" | "--bisect")
+        git_regress_bisect "${args[@]:1}"
+        ;;
+    *)
+        if [ -n "$revisions" ]; then
+            git_regress_revs "${args[@]}"
+        else
+            git_regress "${args[@]}"
+        fi
+        ;;
 esac
