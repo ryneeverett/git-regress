@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import pprint
 import shutil
 import filecmp
@@ -22,7 +23,12 @@ def setup_module():
                  filecmp.cmp(src_setup, cache_setup))
 
     global WRITE
-    WRITE = pytest.config.getoption('write')
+    try:
+        write_flag = sys.argv.index('--write')
+    except ValueError:
+        WRITE = None
+    else:
+        WRITE = sys.argv[write_flag+1]
 
     global ENV
     ENV = scripttest.TestFileEnvironment(REPO_PATH, start_clear=not use_cache)
@@ -121,7 +127,9 @@ class RegressTestBase(object):
     @classmethod
     def checkResult(cls, result, test_result, result_type='failure'):
         if WRITE:
-            raise Exception('In debug mode, assertions are not tested.')
+            raise Exception(f'''
+                pytest option --write={WRITE}:
+                In debug mode, assertions are not tested.''')
 
         # Test Return Code
         if test_result == 'success':

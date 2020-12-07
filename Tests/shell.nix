@@ -3,7 +3,7 @@ with import <nixpkgs> {};
 pkgs.mkShell {
   buildInputs = [
     pkgs.git
-    pkgs.python3Packages.pytest_4
+    pkgs.python3Packages.pytest
     (pkgs.python3Packages.scripttest.overrideAttrs (oldAttrs: {
       src = pkgs.fetchgit {
         url = "https://github.com/ryneeverett/scripttest.git";
