@@ -196,6 +196,6 @@ Running the Tests
 ```sh
 git clone https://github.com/ryneeverett/git-regress.git
 cd git-regress/Tests
-pip install -r requirements.txt
-py.test
+pip install -r requirements.txt # or `nix-shell`
+pytest
 ```

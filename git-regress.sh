@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 __setup() {
     trap __teardown EXIT
@@ -39,7 +39,7 @@ __setup() {
     # Handle negative assertion.
     if [ "${args[0]}" == "!" ]; then
         good_exit_code=1
-        unset args[0]
+        unset args["0"]
     else
         good_exit_code=0
     fi
